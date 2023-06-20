@@ -36,8 +36,8 @@ type messageSharedInformerFactory struct {
 	receiver MQTT.Client
 }
 
-// NewSharedInformerFactory constructs a new instance of metadataSharedInformerFactory for all namespaces.
-func NewSharedInformerFactory(sender, receiver MQTT.Client, defaultResync time.Duration) SharedInformerFactory {
+// NewSharedMessageInformerFactory constructs a new instance of metadataSharedInformerFactory for all namespaces.
+func NewSharedMessageInformerFactory(sender, receiver MQTT.Client, defaultResync time.Duration) SharedInformerFactory {
 	return NewFilteredSharedInformerFactory(sender, receiver, defaultResync, metav1.NamespaceAll, nil)
 }
 

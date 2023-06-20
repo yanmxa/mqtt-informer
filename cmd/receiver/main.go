@@ -1,66 +1,47 @@
 package main
 
 import (
-	goflag "flag"
-	"fmt"
+	"context"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	MQTT "github.com/eclipse/paho.mqtt.golang"
-	flag "github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 
+	"github.com/yanmxa/mqtt-informer/pkg/client"
 	"github.com/yanmxa/mqtt-informer/pkg/config"
-	"github.com/yanmxa/mqtt-informer/pkg/utils"
+	"github.com/yanmxa/mqtt-informer/pkg/informers"
 )
 
 func main() {
-	receiverConfig := config.NewReceiveConfig()
-	flag.CommandLine.AddGoFlagSet(goflag.CommandLine)
-	flag.StringVarP(&receiverConfig.Broker, "broker", "b", "", "the MQTT server")
-	flag.BoolVarP(&receiverConfig.EnableTLS, "tls", "", false, "whether to enable the TLS connection")
-	flag.StringVarP(&receiverConfig.CACert, "ca-crt", "", "", "the ca certificate path")
-	flag.StringVarP(&receiverConfig.ClientCert, "client-crt", "", "", "the client certificate path")
-	flag.StringVarP(&receiverConfig.ClientKey, "client-key", "", "", "the client key path")
-	flag.StringVarP(&receiverConfig.ClientID, "client-id", "", "", "the client id for the MQTT consumer")
-	flag.StringVarP(&receiverConfig.Topic, "topic", "", "", "the topic for the MQTT consumer")
-	QoS := flag.IntP("QoS", "q", 0, "the level of reliability and assurance of message delivery between an MQTT client and broker")
-	flag.Parse()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
-	if receiverConfig.Broker == "" {
-		receiverConfig.Broker = os.Getenv("BROKER")
-	}
-	receiverConfig.QoS = byte(*QoS)
+	sendConfig, receiveConfig := config.GetConfigs()
+	sender := client.GetSender(sendConfig)
+	receiver := client.GetReceiver(receiveConfig)
 
-	receiveCount := 0
-	choke := make(chan [2]string)
-
-	opts := MQTT.NewClientOptions()
-	opts.AddBroker(receiverConfig.Broker)
-	opts.SetClientID(receiverConfig.ClientID)
-	opts.SetTLSConfig(utils.NewTLSConfig(receiverConfig.CACert, receiverConfig.ClientCert,
-		receiverConfig.ClientKey))
-	opts.SetDefaultPublishHandler(func(client MQTT.Client, msg MQTT.Message) {
-		choke <- [2]string{msg.Topic(), string(msg.Payload())}
+	informerFactory := informers.NewSharedMessageInformerFactory(sender, receiver, 5*time.Minute)
+	informer := informerFactory.ForResource(schema.GroupVersionResource{Version: "v1", Resource: "secrets"})
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			accessor, _ := meta.Accessor(obj)
+			klog.Infof("added %s/%s", accessor.GetName(), accessor.GetNamespace())
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldAccessor, _ := meta.Accessor(oldObj)
+			newAccessor, _ := meta.Accessor(newObj)
+			klog.Infof("Updated from %s/%s to %s/%s", oldAccessor.GetNamespace(), oldAccessor.GetName(), newAccessor.GetNamespace(), newAccessor.GetName())
+		},
+		DeleteFunc: func(obj interface{}) {
+			klog.Infof("deleted %v", obj)
+		},
 	})
 
-	client := MQTT.NewClient(opts)
-	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		panic(token.Error())
-	}
-	fmt.Println("Subscriber Starting")
-	if token := client.Subscribe(receiverConfig.Topic, receiverConfig.QoS,
-		// func(client MQTT.Client, msg MQTT.Message) {
-		// 	fmt.Println("received message: ", msg.Topic(), string(msg.Payload()))
-		// }
-		nil); token.Wait() && token.Error() != nil {
-		fmt.Println(token.Error())
-		os.Exit(1)
-	}
-
-	for receiveCount < 4 {
-		incoming := <-choke
-		fmt.Printf("RECEIVED TOPIC: %s MESSAGE: %s\n", incoming[0], incoming[1])
-		receiveCount++
-	}
-	client.Disconnect(250)
-	fmt.Println("Subscriber Disconnected")
+	informerFactory.Start()
+	<-ctx.Done()
 }

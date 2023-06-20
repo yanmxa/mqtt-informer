@@ -9,6 +9,7 @@ import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 	"github.com/yanmxa/mqtt-informer/pkg/apis"
+	"github.com/yanmxa/mqtt-informer/pkg/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -53,7 +54,7 @@ func NewMessageListWatcher(ctx context.Context, source, namespace string, sender
 
 		// start list/watch receiver
 		fmt.Println("Subscriber Starting")
-		if token := receiver.Subscribe("sdk/test/python", 0, func(client MQTT.Client, msg MQTT.Message) {
+		if token := receiver.Subscribe(config.ReceiveTopic, config.QoS, func(client MQTT.Client, msg MQTT.Message) {
 			lw.rwlock.RLock()
 			defer lw.rwlock.RUnlock()
 
@@ -116,7 +117,7 @@ func (e *MessageListWatcher) watch(ctx context.Context, options metav1.ListOptio
 	if token := e.sender.Connect(); token.Wait() && token.Error() != nil {
 		return nil, token.Error()
 	}
-	token := e.sender.Publish("sdk/test/python", 0, false, transportMessage)
+	token := e.sender.Publish(config.SendTopic, config.QoS, config.Retained, transportMessage)
 	token.Wait()
 	if token.Error() != nil {
 		return nil, token.Error()
@@ -139,7 +140,7 @@ func (e *MessageListWatcher) stopWatch() {
 	if token := e.sender.Connect(); token.Wait() && token.Error() != nil {
 		utilruntime.HandleError(token.Error())
 	}
-	token := e.sender.Publish("sdk/test/python", 0, false, transportMessage)
+	token := e.sender.Publish(config.SendTopic, config.QoS, config.Retained, transportMessage)
 	token.Wait()
 	if token.Error() != nil {
 		utilruntime.HandleError(token.Error())
@@ -155,7 +156,7 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 	if token := e.sender.Connect(); token.Wait() && token.Error() != nil {
 		return nil, token.Error()
 	}
-	token := e.sender.Publish("sdk/test/python", 0, false, transportMessage)
+	token := e.sender.Publish(config.SendTopic, config.QoS, config.Retained, transportMessage)
 	token.Wait()
 	if token.Error() != nil {
 		return nil, token.Error()
