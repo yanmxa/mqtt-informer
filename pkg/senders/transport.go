@@ -19,26 +19,24 @@ import (
 
 type defaultSenderTransport struct {
 	sender    Sender // used to list and watch local resource
-	sclient   MQTT.Client
-	rclient   MQTT.Client
+	client    MQTT.Client
 	watchStop map[types.UID]context.CancelFunc
 }
 
-func NewDefaultSenderTransport(sender Sender, sclient, rclient MQTT.Client) SenderTransport {
+func NewDefaultSenderTransport(sender Sender, client MQTT.Client) SenderTransport {
 	return &defaultSenderTransport{
 		sender:    sender,
-		sclient:   sclient,
-		rclient:   rclient,
+		client:    client,
 		watchStop: map[types.UID]context.CancelFunc{},
 	}
 }
 
 func (d *defaultSenderTransport) Run(ctx context.Context) {
-	if token := d.rclient.Connect(); token.Wait() && token.Error() != nil {
+	if token := d.client.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
 	// fmt.Println("Subscriber Starting")
-	if token := d.rclient.Subscribe(config.ReceiveTopic, config.QoS, func(client MQTT.Client, msg MQTT.Message) {
+	if token := d.client.Subscribe(config.ReceiveTopic, config.QoS, func(client MQTT.Client, msg MQTT.Message) {
 		fmt.Println("received message: ", msg.Topic(), string(msg.Payload()))
 
 		transportMsg := &informers.TransportMessage{}
@@ -47,6 +45,12 @@ func (d *defaultSenderTransport) Run(ctx context.Context) {
 			klog.Error(err)
 			return
 		}
+
+		if transportMsg.Source == "agent" {
+			klog.Info("this message is from agent, skip it")
+			return
+		}
+
 		mode, gvr, err := apis.ParseMessageType(transportMsg.Type)
 		if err != nil {
 			klog.Error(err)
@@ -60,7 +64,9 @@ func (d *defaultSenderTransport) Run(ctx context.Context) {
 			return
 		}
 
-		klog.Infof("received request of %v", req)
+		// req, ok := transportMsg.Payload.(apis.RequestMessage{})
+		ob, _ := json.Marshal(req)
+		klog.Infof("received request of %s", string(ob))
 
 		switch mode {
 		case "list":
@@ -68,14 +74,17 @@ func (d *defaultSenderTransport) Run(ctx context.Context) {
 			if err != nil {
 				klog.Error(err)
 			}
+			return
 		case "watch":
 			go d.watchResponse(ctx, types.UID(transportMsg.ID), req.Namespace, gvr, req.Options)
+			return
 		case "stopwatch":
 			cancelFunc, ok := d.watchStop[types.UID(transportMsg.ID)]
 			if ok {
 				cancelFunc()
 				delete(d.watchStop, types.UID(transportMsg.ID))
 			}
+			return
 		}
 	}); token.Wait() && token.Error() != nil {
 		fmt.Println(token.Error())
@@ -83,7 +92,7 @@ func (d *defaultSenderTransport) Run(ctx context.Context) {
 	}
 
 	<-ctx.Done()
-	d.rclient.Disconnect(250)
+	d.client.Disconnect(250)
 	fmt.Println("Subscriber Disconnected")
 }
 
@@ -97,11 +106,6 @@ func (d *defaultSenderTransport) watchResponse(ctx context.Context, id types.UID
 	d.watchStop[id] = stop
 	defer w.Stop()
 
-	if token := d.sclient.Connect(); token.Wait() && token.Error() != nil {
-		return token.Error()
-	}
-	defer d.sclient.Disconnect(250)
-
 	for {
 		select {
 		case e, ok := <-w.ResultChan():
@@ -113,7 +117,7 @@ func (d *defaultSenderTransport) watchResponse(ctx context.Context, id types.UID
 				Type:   e.Type,
 				Object: e.Object.(*unstructured.Unstructured),
 			}
-			payload, err := json.Marshal(response)
+			res, err := json.Marshal(response)
 			if err != nil {
 				return err
 			}
@@ -121,11 +125,15 @@ func (d *defaultSenderTransport) watchResponse(ctx context.Context, id types.UID
 			msg := informers.TransportMessage{}
 			msg.ID = string(id)
 			msg.Type = apis.MessageWatchResponseType(gvr)
-			msg.Source = "server"
-			msg.Payload = payload
+			msg.Source = "agent"
+			msg.Payload = res
 
+			payload, err := json.Marshal(msg)
+			if err != nil {
+				return fmt.Errorf("failed to marshal message %v", err)
+			}
 			klog.Infof("send watch response for resource %v", gvr)
-			token := d.sclient.Publish(config.SendTopic, config.QoS, config.Retained, msg)
+			token := d.client.Publish(config.SendTopic, config.QoS, config.Retained, payload)
 			token.Wait()
 			if token.Error() != nil {
 				klog.Error(token.Error())
@@ -145,31 +153,33 @@ func (d *defaultSenderTransport) sendListResponses(ctx context.Context, id types
 		return err
 	}
 
-	if token := d.sclient.Connect(); token.Wait() && token.Error() != nil {
-		return token.Error()
-	}
-	defer d.sclient.Disconnect(100)
-
 	response := &apis.ListResponseMessage{
 		Objects:   objs,
 		EndOfList: true,
 	}
-	payload, err := json.Marshal(response)
+	res, err := json.Marshal(response)
 	if err != nil {
 		return err
 	}
+	// fmt.Println("send list response: ", response.Objects.Items[0].GetName())
 
 	msg := informers.TransportMessage{}
 	msg.ID = string(id)
-	msg.Type = apis.MessageWatchResponseType(gvr)
-	msg.Source = "server"
-	msg.Payload = payload
+	msg.Type = apis.MessageListResponseType(gvr)
+	msg.Source = "agent"
+	msg.Payload = res
 
-	klog.Infof("send list response for resource %v", gvr)
-	token := d.sclient.Publish(config.SendTopic, config.QoS, config.Retained, msg)
+	klog.Infof("send response for resource %s", msg.Type)
+
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message %v", err)
+	}
+
+	token := d.client.Publish(config.SendTopic, config.QoS, config.Retained, payload)
 	token.Wait()
 	if token.Error() != nil {
-		klog.Errorf("failed to send request with error: %v", err)
+		klog.Errorf("failed to send request with error: %v", token.Error())
 		return token.Error()
 	}
 	return nil

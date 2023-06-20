@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -18,14 +15,14 @@ import (
 )
 
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
+	// ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	// defer cancel()
+	ctx := context.Background()
 
-	sendConfig, receiveConfig := config.GetConfigs()
-	sender := client.GetSender(sendConfig)
-	receiver := client.GetReceiver(receiveConfig)
+	clientConfig := config.GetClientConfig()
+	client := client.GetClient(clientConfig)
 
-	informerFactory := informers.NewSharedMessageInformerFactory(sender, receiver, 5*time.Minute)
+	informerFactory := informers.NewSharedMessageInformerFactory(ctx, client, 5*time.Minute)
 	informer := informerFactory.ForResource(schema.GroupVersionResource{Version: "v1", Resource: "secrets"})
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {

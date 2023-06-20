@@ -33,20 +33,25 @@ func (w *messageWatcher) Stop() {
 	w.stop()
 }
 
-func (w *messageWatcher) process(message TransportMessage) error {
-	if w.uid != types.UID(message.ID) {
+func (w *messageWatcher) process(transportMsg TransportMessage) error {
+	if w.uid != types.UID(transportMsg.ID) {
 		return nil
 	}
 
-	if message.Type != apis.MessageWatchResponseType(w.gvr) {
+	if transportMsg.Type != apis.MessageWatchResponseType(w.gvr) {
 		return nil
 	}
 
 	response := &apis.WatchResponseMessage{}
-	err := json.Unmarshal(message.Payload, response)
+
+	err := json.Unmarshal(transportMsg.Payload, response)
 	if err != nil {
 		return err
 	}
+	// response, ok := message.Payload.(apis.WatchResponseMessage)
+	// if !ok {
+	// 	return fmt.Errorf("failed message type")
+	// }
 
 	watchEvent := &watch.Event{
 		Type:   response.Type,

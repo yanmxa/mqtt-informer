@@ -15,39 +15,14 @@ var (
 	Retained     = false
 )
 
-type BaseConfig struct {
+type ClientConfig struct {
 	*TLSConfig
 	KubeConfig string
 	Broker     string
 	Topic      string
 	QoS        byte
-}
-
-type SendConfig struct {
-	*BaseConfig
-	SenderID string
-	Retained bool
-}
-
-func NewSendConfig() SendConfig {
-	return SendConfig{
-		BaseConfig: &BaseConfig{
-			TLSConfig: &TLSConfig{},
-		},
-	}
-}
-
-type ReceiveConfig struct {
-	*BaseConfig
-	ReceiverID string
-}
-
-func NewReceiveConfig() ReceiveConfig {
-	return ReceiveConfig{
-		BaseConfig: &BaseConfig{
-			TLSConfig: &TLSConfig{},
-		},
-	}
+	ClientID   string
+	Retained   bool
 }
 
 type TLSConfig struct {
@@ -73,48 +48,36 @@ func SetRetained(retain bool) {
 	Retained = retain
 }
 
-func GetConfigs() (*SendConfig, *ReceiveConfig) {
-	var senderId, receiverId string
-	var retained bool
-	baseConfig := &BaseConfig{}
+func GetClientConfig() *ClientConfig {
+	clientConfig := &ClientConfig{
+		TLSConfig: &TLSConfig{},
+	}
 	flag.CommandLine.AddGoFlagSet(goflag.CommandLine)
-	flag.StringVarP(&baseConfig.KubeConfig, "kubeconfig", "k", "", "the kubeconfig for apiserver")
-	flag.StringVarP(&baseConfig.Broker, "broker", "b", "", "the MQTT server")
-	flag.BoolVarP(&baseConfig.EnableTLS, "tls", "", false, "whether to enable the TLS connection")
-	flag.StringVarP(&baseConfig.CACert, "ca-crt", "", "", "the ca certificate path")
-	flag.StringVarP(&baseConfig.ClientCert, "client-crt", "", "", "the client certificate path")
-	flag.StringVarP(&baseConfig.ClientKey, "client-key", "", "", "the client key path")
-	flag.StringVarP(&receiverId, "receiver-id", "", "receiver", "the client id for the MQTT consumer")
-	flag.StringVarP(&senderId, "sender-id", "", "sender", "the client id for the MQTT producer")
-	flag.StringVarP(&baseConfig.Topic, "topic", "", "", "the topic for the MQTT consumer")
+	flag.StringVarP(&clientConfig.KubeConfig, "kubeconfig", "k", "", "the kubeconfig for apiserver")
+	flag.StringVarP(&clientConfig.Broker, "broker", "b", "", "the MQTT server")
+	flag.BoolVarP(&clientConfig.EnableTLS, "tls", "", false, "whether to enable the TLS connection")
+	flag.StringVarP(&clientConfig.CACert, "ca-crt", "", "", "the ca certificate path")
+	flag.StringVarP(&clientConfig.ClientCert, "client-crt", "", "", "the client certificate path")
+	flag.StringVarP(&clientConfig.ClientKey, "client-key", "", "", "the client key path")
+	flag.StringVarP(&clientConfig.ClientID, "client-id", "", "sender", "the client id for the MQTT producer")
+	flag.StringVarP(&clientConfig.Topic, "topic", "", "", "the topic for the MQTT consumer")
 	QoS := flag.IntP("QoS", "q", 0,
 		"the level of reliability and assurance of message delivery between an MQTT client and broker")
-	flag.BoolVarP(&retained, "retained", "", false, "retain the MQTT message or not")
+	flag.BoolVarP(&clientConfig.Retained, "retained", "", false, "retain the MQTT message or not")
 
 	flag.Parse()
-	baseConfig.QoS = byte(*QoS)
-	if baseConfig.Broker == "" {
-		baseConfig.Broker = os.Getenv("BROKER")
+	clientConfig.QoS = byte(*QoS)
+	if clientConfig.Broker == "" {
+		clientConfig.Broker = os.Getenv("BROKER")
 	}
-	if baseConfig.KubeConfig == "" {
-		baseConfig.KubeConfig = os.Getenv("KUBECONFIG")
-	}
-
-	senderConfig := &SendConfig{
-		BaseConfig: baseConfig,
-		SenderID:   senderId,
-		Retained:   retained,
+	if clientConfig.KubeConfig == "" {
+		clientConfig.KubeConfig = os.Getenv("KUBECONFIG")
 	}
 
-	receiverConfig := &ReceiveConfig{
-		BaseConfig: baseConfig,
-		ReceiverID: receiverId,
-	}
+	SetReceiveTopic(clientConfig.Topic)
+	SetSendTopic(clientConfig.Topic)
+	SetRetained(clientConfig.Retained)
+	SetQoS(clientConfig.QoS)
 
-	SetReceiveTopic(baseConfig.Topic)
-	SetSendTopic(baseConfig.Topic)
-	SetRetained(senderConfig.Retained)
-	SetQoS(baseConfig.QoS)
-
-	return senderConfig, receiverConfig
+	return clientConfig
 }

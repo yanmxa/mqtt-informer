@@ -21,8 +21,7 @@ import (
 )
 
 type MessageListWatcher struct {
-	sender         MQTT.Client
-	receiver       MQTT.Client
+	client         MQTT.Client
 	gvr            schema.GroupVersionResource
 	source         string
 	namespace      string
@@ -32,13 +31,12 @@ type MessageListWatcher struct {
 	rwlock         sync.RWMutex
 }
 
-func NewMessageListWatcher(ctx context.Context, source, namespace string, sender, receiver MQTT.Client,
+func NewMessageListWatcher(ctx context.Context, source, namespace string, client MQTT.Client,
 	gvr schema.GroupVersionResource,
 ) *MessageListWatcher {
 	lw := &MessageListWatcher{
 		source:         source,
-		sender:         sender,
-		receiver:       receiver,
+		client:         client,
 		gvr:            gvr,
 		ctx:            ctx,
 		namespace:      namespace,
@@ -47,14 +45,14 @@ func NewMessageListWatcher(ctx context.Context, source, namespace string, sender
 
 	// get message from subscribed topic
 	go func() {
-		if token := receiver.Connect(); token.Wait() && token.Error() != nil {
+		if token := client.Connect(); token.Wait() && token.Error() != nil {
 			klog.Error(token.Error())
 			return
 		}
 
 		// start list/watch receiver
 		fmt.Println("Subscriber Starting")
-		if token := receiver.Subscribe(config.ReceiveTopic, config.QoS, func(client MQTT.Client, msg MQTT.Message) {
+		if token := client.Subscribe(config.ReceiveTopic, config.QoS, func(client MQTT.Client, msg MQTT.Message) {
 			lw.rwlock.RLock()
 			defer lw.rwlock.RUnlock()
 
@@ -62,6 +60,10 @@ func NewMessageListWatcher(ctx context.Context, source, namespace string, sender
 			err := json.Unmarshal(msg.Payload(), transportMessage)
 			if err != nil {
 				klog.Error(err)
+				return
+			}
+			if transportMessage.Source == "agent" {
+				klog.Info("this message is from agent, skip it")
 				return
 			}
 			fmt.Println("received message: ", transportMessage.Type, string(transportMessage.Payload))
@@ -79,6 +81,7 @@ func NewMessageListWatcher(ctx context.Context, source, namespace string, sender
 					klog.Error(err)
 					return
 				}
+
 				resultChan <- *listResponse
 			case apis.MessageWatchType(lw.gvr):
 				if lw.watcher == nil {
@@ -94,7 +97,7 @@ func NewMessageListWatcher(ctx context.Context, source, namespace string, sender
 		}
 
 		<-ctx.Done()
-		receiver.Disconnect(250)
+		client.Disconnect(250)
 		fmt.Println("Subscriber Disconnected")
 	}()
 
@@ -113,19 +116,24 @@ func (e *MessageListWatcher) watch(ctx context.Context, options metav1.ListOptio
 	watchMessage := newListWatchMsg(e.source, apis.MessageWatchType(e.gvr), e.namespace, e.gvr, options)
 	transportMessage := watchMessage.ToMessage()
 
-	// send the watch message, TODO: change it to sender topic
-	if token := e.sender.Connect(); token.Wait() && token.Error() != nil {
-		return nil, token.Error()
+	payload, err := json.Marshal(transportMessage)
+	if err != nil {
+		return nil, err
 	}
-	token := e.sender.Publish(config.SendTopic, config.QoS, config.Retained, transportMessage)
+
+	// send the watch message, TODO: change it to sender topic
+	if !e.client.IsConnected() {
+		if token := e.client.Connect(); token.Wait() && token.Error() != nil {
+			return nil, token.Error()
+		}
+	}
+	token := e.client.Publish(config.SendTopic, config.QoS, config.Retained, payload)
 	token.Wait()
 	if token.Error() != nil {
 		return nil, token.Error()
 	}
-	defer e.sender.Disconnect(10)
 
-	klog.Infof("sent watch message: %s", transportMessage.Type)
-
+	klog.Infof("sent watch message(%s): %s", transportMessage.ID, transportMessage.Type)
 	e.watcher = newMessageWatcher(watchMessage.uid, e.stopWatch, e.gvr, 10)
 
 	return e.watcher, nil
@@ -137,31 +145,39 @@ func (e *MessageListWatcher) stopWatch() {
 	transportMessage := stopWatchMessage.ToMessage()
 
 	// send the watch message, TODO: change it to sender topic
-	if token := e.sender.Connect(); token.Wait() && token.Error() != nil {
+	if token := e.client.Connect(); token.Wait() && token.Error() != nil {
 		utilruntime.HandleError(token.Error())
 	}
-	token := e.sender.Publish(config.SendTopic, config.QoS, config.Retained, transportMessage)
+	token := e.client.Publish(config.SendTopic, config.QoS, config.Retained, transportMessage)
 	token.Wait()
 	if token.Error() != nil {
 		utilruntime.HandleError(token.Error())
 	}
-	defer e.sender.Disconnect(10)
+	defer e.client.Disconnect(10)
 }
 
 func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 	listMessage := newListWatchMsg(e.source, apis.MessageListType(e.gvr), e.namespace, e.gvr, options)
 	transportMessage := listMessage.ToMessage()
 
-	// send the list message, TODO: change it to sender topic
-	if token := e.sender.Connect(); token.Wait() && token.Error() != nil {
-		return nil, token.Error()
+	payload, err := json.Marshal(transportMessage)
+	if err != nil {
+		return nil, err
 	}
-	token := e.sender.Publish(config.SendTopic, config.QoS, config.Retained, transportMessage)
+
+	// send the list message, TODO: change it to sender topic
+	if !e.client.IsConnected() {
+		if token := e.client.Connect(); token.Wait() && token.Error() != nil {
+			return nil, token.Error()
+		}
+	}
+
+	token := e.client.Publish(config.SendTopic, config.QoS, config.Retained, payload)
 	token.Wait()
 	if token.Error() != nil {
 		return nil, token.Error()
 	}
-	defer e.sender.Disconnect(10)
+	defer e.client.Disconnect(10)
 
 	klog.Infof("sent list message: %s", transportMessage.Type)
 
@@ -169,6 +185,7 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 
 	// now start to receive the list response until endOfList is false
 	e.listResultChan[listMessage.uid] = make(chan apis.ListResponseMessage)
+	fmt.Println(">>>>>>>>>> resourceMessageID: ", listMessage.uid)
 	defer delete(e.listResultChan, listMessage.uid)
 	for {
 		select {
