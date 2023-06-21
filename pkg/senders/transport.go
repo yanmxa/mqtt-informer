@@ -32,10 +32,13 @@ func NewDefaultSenderTransport(sender Sender, client MQTT.Client) SenderTranspor
 }
 
 func (d *defaultSenderTransport) Run(ctx context.Context) {
-	if token := d.client.Connect(); token.Wait() && token.Error() != nil {
-		panic(token.Error())
+	if !d.client.IsConnected() {
+		if token := d.client.Connect(); token.Wait() && token.Error() != nil {
+			panic(token.Error())
+		}
 	}
-	// fmt.Println("Subscriber Starting")
+
+	fmt.Println("Subscriber Starting")
 	if token := d.client.Subscribe(config.ReceiveTopic, config.QoS, func(client MQTT.Client, msg MQTT.Message) {
 		transportMsg := &informers.TransportMessage{}
 		err := json.Unmarshal(msg.Payload(), transportMsg)
@@ -44,13 +47,13 @@ func (d *defaultSenderTransport) Run(ctx context.Context) {
 			return
 		}
 
+		fmt.Println("received message: ", transportMsg.ID, transportMsg.Type)
+
 		// hack for one topic
 		if transportMsg.Source == "manager" {
-			klog.Info("this message is from manager, skip it")
+			klog.Infof("this message is from manager(%s - %s), skip it", transportMsg.ID, transportMsg.Type)
 			return
 		}
-
-		fmt.Println("manager received message: ", msg.Topic(), string(msg.Payload()))
 
 		mode, gvr, err := apis.ParseMessageType(transportMsg.Type)
 		if err != nil {
@@ -65,36 +68,30 @@ func (d *defaultSenderTransport) Run(ctx context.Context) {
 			return
 		}
 
-		// req, ok := transportMsg.Payload.(apis.RequestMessage{})
-		ob, _ := json.Marshal(req)
-		klog.Infof("received request of %s", string(ob))
-
 		switch mode {
 		case "list":
 			err := d.sendListResponses(ctx, types.UID(transportMsg.ID), req.Namespace, gvr, req.Options)
 			if err != nil {
 				klog.Error(err)
 			}
-			return
 		case "watch":
 			go d.watchResponse(ctx, types.UID(transportMsg.ID), req.Namespace, gvr, req.Options)
-			return
 		case "stopwatch":
 			cancelFunc, ok := d.watchStop[types.UID(transportMsg.ID)]
 			if ok {
 				cancelFunc()
 				delete(d.watchStop, types.UID(transportMsg.ID))
 			}
-			return
 		}
 	}); token.Wait() && token.Error() != nil {
 		fmt.Println(token.Error())
 		os.Exit(1)
 	}
 
+	fmt.Println("Subscriber Started")
 	<-ctx.Done()
-	d.client.Disconnect(250)
-	fmt.Println("Subscriber Disconnected")
+	// d.client.Disconnect(250)
+	// fmt.Println("Subscriber Disconnected")
 }
 
 func (d *defaultSenderTransport) watchResponse(ctx context.Context, id types.UID, namespace string, gvr schema.GroupVersionResource, options metav1.ListOptions) error {
@@ -133,7 +130,7 @@ func (d *defaultSenderTransport) watchResponse(ctx context.Context, id types.UID
 			if err != nil {
 				return fmt.Errorf("failed to marshal message %v", err)
 			}
-			klog.Infof("send watch response for resource %v", gvr)
+			klog.Infof("send watch message(%s): %s", msg.ID, msg.Type)
 			token := d.client.Publish(config.SendTopic, config.QoS, config.Retained, payload)
 			token.Wait()
 			if token.Error() != nil {
@@ -170,8 +167,7 @@ func (d *defaultSenderTransport) sendListResponses(ctx context.Context, id types
 	msg.Source = "manager"
 	msg.Payload = res
 
-	klog.Infof("send response for resource %s", msg.Type)
-
+	klog.Infof("send list response message(%s): %s", msg.ID, msg.Type)
 	payload, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message %v", err)
@@ -183,5 +179,6 @@ func (d *defaultSenderTransport) sendListResponses(ctx context.Context, id types
 		klog.Errorf("failed to send request with error: %v", token.Error())
 		return token.Error()
 	}
+	klog.Info("send list response successfully")
 	return nil
 }

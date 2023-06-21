@@ -63,7 +63,7 @@ func NewMessageListWatcher(ctx context.Context, source, namespace string, client
 				return
 			}
 			if transportMessage.Source == "agent" {
-				klog.Info("this message is from agent, skip it")
+				klog.Infof("this message(%s - %s) is from agent, skip it", transportMessage.ID, transportMessage.Type)
 				return
 			}
 			klog.Infof("received manager message(%s): %s", transportMessage.ID, transportMessage.Type)
