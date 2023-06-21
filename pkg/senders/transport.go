@@ -37,8 +37,6 @@ func (d *defaultSenderTransport) Run(ctx context.Context) {
 	}
 	// fmt.Println("Subscriber Starting")
 	if token := d.client.Subscribe(config.ReceiveTopic, config.QoS, func(client MQTT.Client, msg MQTT.Message) {
-		fmt.Println("received message: ", msg.Topic(), string(msg.Payload()))
-
 		transportMsg := &informers.TransportMessage{}
 		err := json.Unmarshal(msg.Payload(), transportMsg)
 		if err != nil {
@@ -46,10 +44,13 @@ func (d *defaultSenderTransport) Run(ctx context.Context) {
 			return
 		}
 
-		if transportMsg.Source == "agent" {
-			klog.Info("this message is from agent, skip it")
+		// hack for one topic
+		if transportMsg.Source == "manager" {
+			klog.Info("this message is from manager, skip it")
 			return
 		}
+
+		fmt.Println("manager received message: ", msg.Topic(), string(msg.Payload()))
 
 		mode, gvr, err := apis.ParseMessageType(transportMsg.Type)
 		if err != nil {
@@ -125,7 +126,7 @@ func (d *defaultSenderTransport) watchResponse(ctx context.Context, id types.UID
 			msg := informers.TransportMessage{}
 			msg.ID = string(id)
 			msg.Type = apis.MessageWatchResponseType(gvr)
-			msg.Source = "agent"
+			msg.Source = "manager"
 			msg.Payload = res
 
 			payload, err := json.Marshal(msg)
@@ -166,7 +167,7 @@ func (d *defaultSenderTransport) sendListResponses(ctx context.Context, id types
 	msg := informers.TransportMessage{}
 	msg.ID = string(id)
 	msg.Type = apis.MessageListResponseType(gvr)
-	msg.Source = "agent"
+	msg.Source = "manager"
 	msg.Payload = res
 
 	klog.Infof("send response for resource %s", msg.Type)

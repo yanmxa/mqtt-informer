@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 
 	"github.com/yanmxa/mqtt-informer/pkg/apis"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
@@ -34,6 +37,7 @@ func (w *messageWatcher) Stop() {
 }
 
 func (w *messageWatcher) process(transportMsg TransportMessage) error {
+	// klog.Infof("process message(%s): %s", transportMsg.ID, transportMsg.Type)
 	if w.uid != types.UID(transportMsg.ID) {
 		return nil
 	}
@@ -42,22 +46,36 @@ func (w *messageWatcher) process(transportMsg TransportMessage) error {
 		return nil
 	}
 
-	response := &apis.WatchResponseMessage{}
+	watchResponse := &apis.WatchResponseMessage{}
 
-	err := json.Unmarshal(transportMsg.Payload, response)
+	err := json.Unmarshal(transportMsg.Payload, watchResponse)
 	if err != nil {
 		return err
 	}
-	// response, ok := message.Payload.(apis.WatchResponseMessage)
-	// if !ok {
-	// 	return fmt.Errorf("failed message type")
+	// watchRes, err := json.Marshal(watchResponse)
+	// if err != nil {
+	// 	return err
 	// }
-
-	watchEvent := &watch.Event{
-		Type:   response.Type,
-		Object: response.Object,
+	// fmt.Println(string(watchRes))
+	partialObj, err := convertToPartialObjectMetadata(watchResponse.Object)
+	if err != nil {
+		return err
 	}
 
+	watchEvent := &watch.Event{
+		Type:   watchResponse.Type,
+		Object: partialObj,
+	}
+	// klog.Infof("send watch event(%s/%s): %s", partialObj.Namespace, partialObj.Name, watchEvent.Type)
 	w.result <- *watchEvent
 	return nil
+}
+
+func convertToPartialObjectMetadata(obj *unstructured.Unstructured) (*v1.PartialObjectMetadata, error) {
+	partialObj := &v1.PartialObjectMetadata{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, partialObj)
+	if err != nil {
+		return nil, err
+	}
+	return partialObj, nil
 }

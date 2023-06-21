@@ -66,7 +66,7 @@ func NewMessageListWatcher(ctx context.Context, source, namespace string, client
 				klog.Info("this message is from agent, skip it")
 				return
 			}
-			fmt.Println("received message: ", transportMessage.Type, string(transportMessage.Payload))
+			klog.Infof("received manager message(%s): %s", transportMessage.ID, transportMessage.Type)
 
 			switch transportMessage.Type {
 			case apis.MessageListResponseType(lw.gvr): // response.list.%s
@@ -83,7 +83,7 @@ func NewMessageListWatcher(ctx context.Context, source, namespace string, client
 				}
 
 				resultChan <- *listResponse
-			case apis.MessageWatchType(lw.gvr):
+			case apis.MessageWatchResponseType(lw.gvr):
 				if lw.watcher == nil {
 					return
 				}
@@ -133,7 +133,7 @@ func (e *MessageListWatcher) watch(ctx context.Context, options metav1.ListOptio
 		return nil, token.Error()
 	}
 
-	klog.Infof("sent watch message(%s): %s", transportMessage.ID, transportMessage.Type)
+	klog.Infof("request to watch message(%s): %s", transportMessage.ID, transportMessage.Type)
 	e.watcher = newMessageWatcher(watchMessage.uid, e.stopWatch, e.gvr, 10)
 
 	return e.watcher, nil
@@ -177,15 +177,13 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 	if token.Error() != nil {
 		return nil, token.Error()
 	}
-	defer e.client.Disconnect(10)
 
-	klog.Infof("sent list message: %s", transportMessage.Type)
+	klog.Infof("request to list message(%s): %s", transportMessage.ID, transportMessage.Type)
 
 	objectList := &unstructured.UnstructuredList{}
 
 	// now start to receive the list response until endOfList is false
 	e.listResultChan[listMessage.uid] = make(chan apis.ListResponseMessage)
-	fmt.Println(">>>>>>>>>> resourceMessageID: ", listMessage.uid)
 	defer delete(e.listResultChan, listMessage.uid)
 	for {
 		select {

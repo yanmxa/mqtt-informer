@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -15,9 +18,9 @@ import (
 )
 
 func main() {
-	// ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	// defer cancel()
-	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	// ctx := context.Background()
 
 	clientConfig := config.GetClientConfig()
 	client := client.GetClient(clientConfig)
@@ -27,7 +30,7 @@ func main() {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			accessor, _ := meta.Accessor(obj)
-			klog.Infof("added %s/%s", accessor.GetName(), accessor.GetNamespace())
+			klog.Infof("Added %s/%s", accessor.GetName(), accessor.GetNamespace())
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldAccessor, _ := meta.Accessor(oldObj)
@@ -35,7 +38,7 @@ func main() {
 			klog.Infof("Updated from %s/%s to %s/%s", oldAccessor.GetNamespace(), oldAccessor.GetName(), newAccessor.GetNamespace(), newAccessor.GetName())
 		},
 		DeleteFunc: func(obj interface{}) {
-			klog.Infof("deleted %v", obj)
+			klog.Infof("Deleted %v", obj)
 		},
 	})
 
