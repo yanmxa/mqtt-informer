@@ -20,9 +20,11 @@ type messageInformer struct {
 }
 
 // NewFilteredMetadataInformer constructs a new informer for a metadata type.
-func NewFilteredMetadataInformer(ctx context.Context, client MQTT.Client, gvr schema.GroupVersionResource, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions TweakListOptionsFunc,
+func NewFilteredMetadataInformer(ctx context.Context, client MQTT.Client, gvr schema.GroupVersionResource,
+	namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions TweakListOptionsFunc,
+	signal, payload string,
 ) informers.GenericInformer {
-	lw := NewMessageListWatcher(ctx, "agent", namespace, client, gvr)
+	lw := NewMessageListWatcher(ctx, "mirror", namespace, client, gvr, signal, payload)
 
 	return &messageInformer{
 		gvr: gvr,

@@ -29,10 +29,13 @@ type MessageListWatcher struct {
 	watcher        *messageWatcher
 	listResultChan map[types.UID]chan apis.ListResponseMessage
 	rwlock         sync.RWMutex
+
+	signalTopic  string
+	payloadTopic string
 }
 
 func NewMessageListWatcher(ctx context.Context, source, namespace string, client MQTT.Client,
-	gvr schema.GroupVersionResource,
+	gvr schema.GroupVersionResource, signalTopic, payloadTopic string,
 ) *MessageListWatcher {
 	lw := &MessageListWatcher{
 		source:         source,
@@ -41,6 +44,8 @@ func NewMessageListWatcher(ctx context.Context, source, namespace string, client
 		ctx:            ctx,
 		namespace:      namespace,
 		listResultChan: map[types.UID]chan apis.ListResponseMessage{},
+		signalTopic:    signalTopic,
+		payloadTopic:   payloadTopic,
 	}
 
 	// get message from subscribed topic
@@ -51,8 +56,8 @@ func NewMessageListWatcher(ctx context.Context, source, namespace string, client
 		}
 
 		// start list/watch receiver
-		fmt.Println("Subscriber Starting")
-		if token := client.Subscribe(config.ReceiveTopic, config.QoS, func(client MQTT.Client, msg MQTT.Message) {
+		klog.Infof("start listening to payload topic: %s", payloadTopic)
+		if token := client.Subscribe(payloadTopic, config.QoS, func(client MQTT.Client, msg MQTT.Message) {
 			lw.rwlock.RLock()
 			defer lw.rwlock.RUnlock()
 
@@ -62,11 +67,7 @@ func NewMessageListWatcher(ctx context.Context, source, namespace string, client
 				klog.Error(err)
 				return
 			}
-			if transportMessage.Source == "agent" {
-				klog.Infof("this message(%s - %s) is from agent, skip it", transportMessage.ID, transportMessage.Type)
-				return
-			}
-			klog.Infof("received manager message(%s): %s", transportMessage.ID, transportMessage.Type)
+			klog.Infof("received payload message(%s): %s", transportMessage.ID, transportMessage.Type)
 
 			switch transportMessage.Type {
 			case apis.MessageListResponseType(lw.gvr): // response.list.%s
@@ -98,7 +99,7 @@ func NewMessageListWatcher(ctx context.Context, source, namespace string, client
 
 		<-ctx.Done()
 		client.Disconnect(250)
-		fmt.Println("Subscriber Disconnected")
+		klog.Infof("stop listening to payload topic: %s", payloadTopic)
 	}()
 
 	return lw
@@ -127,7 +128,7 @@ func (e *MessageListWatcher) watch(ctx context.Context, options metav1.ListOptio
 			return nil, token.Error()
 		}
 	}
-	token := e.client.Publish(config.SendTopic, config.QoS, config.Retained, payload)
+	token := e.client.Publish(e.signalTopic, config.QoS, config.Retained, payload)
 	token.Wait()
 	if token.Error() != nil {
 		return nil, token.Error()
@@ -148,7 +149,7 @@ func (e *MessageListWatcher) stopWatch() {
 	if token := e.client.Connect(); token.Wait() && token.Error() != nil {
 		utilruntime.HandleError(token.Error())
 	}
-	token := e.client.Publish(config.SendTopic, config.QoS, config.Retained, transportMessage)
+	token := e.client.Publish(e.signalTopic, config.QoS, config.Retained, transportMessage)
 	token.Wait()
 	if token.Error() != nil {
 		utilruntime.HandleError(token.Error())
@@ -172,7 +173,7 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 		}
 	}
 
-	token := e.client.Publish(config.SendTopic, config.QoS, config.Retained, payload)
+	token := e.client.Publish(e.signalTopic, config.QoS, config.Retained, payload)
 	token.Wait()
 	if token.Error() != nil {
 		return nil, token.Error()

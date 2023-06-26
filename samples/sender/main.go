@@ -23,7 +23,7 @@ func main() {
 			break
 		}
 		text := fmt.Sprintf("this is msg #%d!", i)
-		token := c.Publish(sendConfig.Topic, sendConfig.QoS, sendConfig.Retained, text)
+		token := c.Publish(sendConfig.PayloadTopic, sendConfig.QoS, sendConfig.Retained, text)
 		token.Wait()
 		if token.Error() != nil {
 			fmt.Println(token.Error())

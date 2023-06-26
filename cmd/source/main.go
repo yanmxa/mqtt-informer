@@ -29,7 +29,7 @@ func main() {
 
 	dynamicClient := dynamic.NewForConfigOrDie(restConfig)
 	s := senders.NewDynamicSender(dynamicClient)
-	transport := senders.NewDefaultSenderTransport(s, client)
+	transport := senders.NewDefaultSenderTransport(s, client, clientConfig.SignalTopic, clientConfig.PayloadTopic)
 
 	transport.Run(ctx)
 }

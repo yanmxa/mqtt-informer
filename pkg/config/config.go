@@ -9,20 +9,19 @@ import (
 )
 
 var (
-	ReceiveTopic string
-	SendTopic    string
-	QoS          = byte(0)
-	Retained     = false
+	QoS      = byte(0)
+	Retained = false
 )
 
 type ClientConfig struct {
 	*TLSConfig
-	KubeConfig string
-	Broker     string
-	Topic      string
-	QoS        byte
-	ClientID   string
-	Retained   bool
+	KubeConfig   string
+	Broker       string
+	QoS          byte
+	ClientID     string
+	Retained     bool
+	SignalTopic  string
+	PayloadTopic string
 }
 
 type TLSConfig struct {
@@ -30,14 +29,6 @@ type TLSConfig struct {
 	CACert     string
 	ClientCert string
 	ClientKey  string
-}
-
-func SetReceiveTopic(topic string) {
-	ReceiveTopic = topic
-}
-
-func SetSendTopic(topic string) {
-	SendTopic = topic
 }
 
 func SetQoS(qos byte) {
@@ -59,8 +50,9 @@ func GetClientConfig() *ClientConfig {
 	flag.StringVarP(&clientConfig.CACert, "ca-crt", "", "", "the ca certificate path")
 	flag.StringVarP(&clientConfig.ClientCert, "client-crt", "", "", "the client certificate path")
 	flag.StringVarP(&clientConfig.ClientKey, "client-key", "", "", "the client key path")
-	flag.StringVarP(&clientConfig.ClientID, "client-id", "", "sender", "the client id for the MQTT producer")
-	flag.StringVarP(&clientConfig.Topic, "topic", "", "", "the topic for the MQTT consumer")
+	flag.StringVarP(&clientConfig.ClientID, "client-id", "", "sender", "the client id for the MQTT")
+	flag.StringVarP(&clientConfig.SignalTopic, "signal-topic", "", "", "the topic for list/watch signal")
+	flag.StringVarP(&clientConfig.PayloadTopic, "payload-topic", "", "", "the topic for response list/watch payload")
 	QoS := flag.IntP("QoS", "q", 0,
 		"the level of reliability and assurance of message delivery between an MQTT client and broker")
 	flag.BoolVarP(&clientConfig.Retained, "retained", "", false, "retain the MQTT message or not")
@@ -74,8 +66,6 @@ func GetClientConfig() *ClientConfig {
 		clientConfig.KubeConfig = os.Getenv("KUBECONFIG")
 	}
 
-	SetReceiveTopic(clientConfig.Topic)
-	SetSendTopic(clientConfig.Topic)
 	SetRetained(clientConfig.Retained)
 	SetQoS(clientConfig.QoS)
 

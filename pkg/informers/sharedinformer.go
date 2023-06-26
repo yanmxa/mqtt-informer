@@ -31,18 +31,20 @@ type messageSharedInformerFactory struct {
 	shuttingDown bool
 
 	// normally we use the client to list/watch resources
-	ctx    context.Context
-	client MQTT.Client
+	ctx          context.Context
+	client       MQTT.Client
+	signalTopic  string
+	payloadTopic string
 }
 
 // NewSharedMessageInformerFactory constructs a new instance of metadataSharedInformerFactory for all namespaces.
-func NewSharedMessageInformerFactory(ctx context.Context, client MQTT.Client, defaultResync time.Duration) SharedInformerFactory {
-	return NewFilteredSharedInformerFactory(ctx, client, defaultResync, metav1.NamespaceAll, nil)
+func NewSharedMessageInformerFactory(ctx context.Context, client MQTT.Client, defaultResync time.Duration, signal, payload string) SharedInformerFactory {
+	return NewFilteredSharedInformerFactory(ctx, client, defaultResync, metav1.NamespaceAll, nil, signal, payload)
 }
 
 // NewFilteredSharedInformerFactory constructs a new instance of metadataSharedInformerFactory.
 // Listers obtained via this factory will be subject to the same filters as specified here.
-func NewFilteredSharedInformerFactory(ctx context.Context, client MQTT.Client, defaultResync time.Duration, namespace string, tweakListOptions TweakListOptionsFunc) SharedInformerFactory {
+func NewFilteredSharedInformerFactory(ctx context.Context, client MQTT.Client, defaultResync time.Duration, namespace string, tweakListOptions TweakListOptionsFunc, signal, payload string) SharedInformerFactory {
 	return &messageSharedInformerFactory{
 		ctx:              ctx,
 		defaultResync:    defaultResync,
@@ -51,6 +53,8 @@ func NewFilteredSharedInformerFactory(ctx context.Context, client MQTT.Client, d
 		startedInformers: make(map[schema.GroupVersionResource]bool),
 		tweakListOptions: tweakListOptions,
 		client:           client,
+		signalTopic:      signal,
+		payloadTopic:     payload,
 	}
 }
 
@@ -63,7 +67,7 @@ func (f *messageSharedInformerFactory) ForResource(gvr schema.GroupVersionResour
 		return informer
 	}
 
-	informer = NewFilteredMetadataInformer(f.ctx, f.client, gvr, f.namespace, f.defaultResync, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	informer = NewFilteredMetadataInformer(f.ctx, f.client, gvr, f.namespace, f.defaultResync, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions, f.signalTopic, f.payloadTopic)
 	f.informers[key] = informer
 
 	return informer

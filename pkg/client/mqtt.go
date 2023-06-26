@@ -10,6 +10,7 @@ func GetClient(config *config.ClientConfig) MQTT.Client {
 	opts := MQTT.NewClientOptions()
 	opts.AddBroker(config.Broker)
 	opts.SetClientID(config.ClientID)
+	opts.SetAutoReconnect(true)
 	if config.EnableTLS {
 		opts.SetTLSConfig(utils.NewTLSConfig(config.CACert, config.ClientCert, config.ClientKey))
 	}
