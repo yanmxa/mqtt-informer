@@ -22,6 +22,7 @@ type ClientConfig struct {
 	Retained     bool
 	SignalTopic  string
 	PayloadTopic string
+	ClusterName  string
 }
 
 type TLSConfig struct {
@@ -53,6 +54,7 @@ func GetClientConfig() *ClientConfig {
 	flag.StringVarP(&clientConfig.ClientID, "client-id", "", "sender", "the client id for the MQTT")
 	flag.StringVarP(&clientConfig.SignalTopic, "signal-topic", "", "", "the topic for list/watch signal")
 	flag.StringVarP(&clientConfig.PayloadTopic, "payload-topic", "", "", "the topic for response list/watch payload")
+	flag.StringVarP(&clientConfig.ClusterName, "cluster", "", "", "the cluster where the syncer is running ")
 	QoS := flag.IntP("QoS", "q", 0,
 		"the level of reliability and assurance of message delivery between an MQTT client and broker")
 	flag.BoolVarP(&clientConfig.Retained, "retained", "", false, "retain the MQTT message or not")
