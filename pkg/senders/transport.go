@@ -9,6 +9,7 @@ import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/yanmxa/mqtt-informer/pkg/apis"
 	"github.com/yanmxa/mqtt-informer/pkg/config"
+	"github.com/yanmxa/mqtt-informer/pkg/constant"
 	"github.com/yanmxa/mqtt-informer/pkg/informers"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -105,9 +106,17 @@ func (d *defaultSenderTransport) watchResponse(ctx context.Context, id types.UID
 				return fmt.Errorf("failed to watch the result")
 			}
 
+			obj := e.Object.(*unstructured.Unstructured)
+			labels := obj.GetLabels()
+			if labels == nil {
+				labels = map[string]string{}
+			}
+			labels[constant.ClusterLabelKey] = config.ClusterName
+			obj.SetLabels(labels)
+
 			response := &apis.WatchResponseMessage{
 				Type:   e.Type,
-				Object: e.Object.(*unstructured.Unstructured),
+				Object: obj,
 			}
 			res, err := json.Marshal(response)
 			if err != nil {
@@ -143,6 +152,15 @@ func (d *defaultSenderTransport) sendListResponses(ctx context.Context, id types
 	if err != nil {
 		klog.Errorf("failed to list resource with err: %v", err)
 		return err
+	}
+
+	for i, obj := range objs.Items {
+		labels := obj.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[constant.ClusterLabelKey] = config.ClusterName
+		objs.Items[i].SetLabels(labels)
 	}
 
 	response := &apis.ListResponseMessage{

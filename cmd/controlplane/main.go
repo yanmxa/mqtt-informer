@@ -7,18 +7,22 @@ import (
 	"syscall"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
 	"github.com/yanmxa/mqtt-informer/pkg/client"
 	"github.com/yanmxa/mqtt-informer/pkg/config"
+	"github.com/yanmxa/mqtt-informer/pkg/constant"
 	"github.com/yanmxa/mqtt-informer/pkg/informers"
 )
 
@@ -45,12 +49,21 @@ func main() {
 		panic(err.Error())
 	}
 
+	// Create the Kubernetes client
+	kubeClient, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		panic(err.Error())
+	}
+
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			accessor, _ := meta.Accessor(obj)
 			if _, ok := accessor.GetLabels()["mqtt-resource"]; !ok {
 				return
 			}
+			accessor = convertToGlobalObj(accessor)
+			validateNamespace(kubeClient, accessor.GetNamespace())
+
 			accessor.SetResourceVersion("")
 			accessor.SetManagedFields(nil)
 			accessor.SetGeneration(0)
@@ -73,20 +86,23 @@ func main() {
 			if _, ok := newAccessor.GetLabels()["mqtt-resource"]; !ok {
 				return
 			}
-			unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(newAccessor)
+			newAccessor = convertToGlobalObj(newAccessor)
+
+			oldUnstructuredObj, err := dynamicClient.Resource(gvr).Namespace(newAccessor.GetNamespace()).Get(ctx, newAccessor.GetName(), metav1.GetOptions{})
 			if err != nil {
 				klog.Error(err)
 				return
 			}
 
-			oldUnstructuredObj, err := dynamicClient.Resource(gvr).Namespace(oldAccessor.GetNamespace()).Get(ctx, oldAccessor.GetName(), metav1.GetOptions{})
+			newUnstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(newAccessor)
 			if err != nil {
 				klog.Error(err)
 				return
 			}
-			unstructuredObj["metadata"].(map[string]interface{})["resourceVersion"] = oldUnstructuredObj.GetResourceVersion()
-			unstructuredObj["metadata"].(map[string]interface{})["uid"] = oldUnstructuredObj.GetUID()
-			_, err = dynamicClient.Resource(gvr).Namespace(newAccessor.GetNamespace()).Update(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.UpdateOptions{})
+			newUnstructuredObj["metadata"].(map[string]interface{})["resourceVersion"] = oldUnstructuredObj.GetResourceVersion()
+			newUnstructuredObj["metadata"].(map[string]interface{})["uid"] = oldUnstructuredObj.GetUID()
+
+			_, err = dynamicClient.Resource(gvr).Namespace(newAccessor.GetNamespace()).Update(ctx, &unstructured.Unstructured{Object: newUnstructuredObj}, metav1.UpdateOptions{})
 			if err != nil {
 				klog.Error(err)
 				return
@@ -98,6 +114,7 @@ func main() {
 			if _, ok := accessor.GetLabels()["mqtt-resource"]; !ok {
 				return
 			}
+			accessor = convertToGlobalObj(accessor)
 			err := dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Delete(ctx, accessor.GetName(), metav1.DeleteOptions{})
 			if err != nil {
 				klog.Error(err)
@@ -111,18 +128,28 @@ func main() {
 	<-ctx.Done()
 }
 
-func ConvertToUnstructured(obj metav1.Object) (*unstructured.Unstructured, error) {
-	// Create an empty unstructured object
-	unstructuredObj := &unstructured.Unstructured{}
+func convertToGlobalObj(obj metav1.Object) metav1.Object {
+	name := obj.GetName()
+	namespace := obj.GetNamespace()
+	clusterName := obj.GetLabels()[constant.ClusterLabelKey]
+	if namespace == "" {
+		obj.SetName(clusterName + "." + name)
+	} else {
+		obj.SetName(namespace + "." + name)
+		obj.SetNamespace(clusterName)
+	}
+	return obj
+}
 
-	// Convert the metav1.Object to a runtime.Object
-	runtimeObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
-	if err != nil {
-		return nil, err
+func validateNamespace(kubeClient *kubernetes.Clientset, namespace string) error {
+	_, err := kubeClient.CoreV1().Namespaces().Get(context.Background(), namespace, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		_, err = kubeClient.CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespace,
+			},
+		}, metav1.CreateOptions{})
 	}
 
-	// Set the object's fields using the runtime.Object
-	unstructuredObj.SetUnstructuredContent(runtimeObj)
-
-	return unstructuredObj, nil
+	return err
 }

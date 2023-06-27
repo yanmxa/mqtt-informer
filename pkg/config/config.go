@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	QoS      = byte(0)
-	Retained = false
+	QoS         = byte(0)
+	Retained    = false
+	ClusterName = ""
 )
 
 type ClientConfig struct {
@@ -38,6 +39,10 @@ func SetQoS(qos byte) {
 
 func SetRetained(retain bool) {
 	Retained = retain
+}
+
+func SetClusterName(name string) {
+	ClusterName = name
 }
 
 func GetClientConfig() *ClientConfig {
@@ -70,6 +75,7 @@ func GetClientConfig() *ClientConfig {
 
 	SetRetained(clientConfig.Retained)
 	SetQoS(clientConfig.QoS)
+	SetClusterName(clientConfig.ClusterName)
 
 	return clientConfig
 }
