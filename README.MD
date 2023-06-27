@@ -3,6 +3,7 @@
 ## Description 
 ![001](./docs/images/001.png)
 ![002](./docs/images/002.png)
+### Case 1: As a monitor to view resources from clusters
 ![003](./docs/images/003.png)
 
 
