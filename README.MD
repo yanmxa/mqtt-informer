@@ -10,7 +10,6 @@ docker run --rm --name mosquitto -p 1883:1883 -v "$(pwd)/samples/mosquitto.conf:
 ## Does the informer have to reflect ETCD?
 | https://github.com/qiujian16/events-informer
 ![001](./docs/images/001.png)
-![002](./docs/images/002.png)
 
 ## Scenario 1: As a monitor to view resources from clusters
 ![003](./docs/images/003.png)
