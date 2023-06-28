@@ -39,11 +39,15 @@ make build
 - How to reconcile the cluster resources by the hub spec, such as deleting a resource on the cluster to ensure it can be recreated?
 - How to view the cluster resources status from hub view?
 
-### Scenario 2: Use bidirectional informer to manage clusters
+## Scenario 2: Use bidirectional informer to deploy workload to cluster
 ![004](./docs/images/004.png)
 
-## Connect to the broker
+### Demo
 ```bash
 ./bin/agent --broker tcp://127.0.0.1:1883 --client-id sourceId --signal-topic /signal --payload-topic /payload --cluster cluster1
 ./bin/hub --broker tcp://127.0.0.1:1883 --client-id controlplaneId --signal-topic /signal --payload-topic /payload
 ```
+
+#### Cons
+- How to define the Cluster CRD and manage it's lifecycle
+- How to handle workload scheduling, like the Placement in OCM?
