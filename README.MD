@@ -6,7 +6,7 @@
 ### Transporter might be an interesting candidate!
 
 ![message queue](./docs/images/message-queue.png)
-Transport(Message Queue) can decouple, improve scalability, and cut peaks and fill valleys. These excellent features not only shine in application services, but also should also have important value in platform management. But when considering to use message queue, the topic that can't always be avoided is how to ensure **data consistency**.
+Transport(Message Queue) can **decouple**, improve **scalability**, and peak shaving and valley filling of the **flow rate**. These excellent features not only shine in application services, but also should also have important value in platform management. But when considering to use message queue, the topic that can't always be avoided is how to ensure **data consistency**.
 
 In order to gain a large scalability, [Mutilcluster-Global-Hub](https://github.com/stolostron/multicluster-global-hub) brings transport to increases the cluster fleet size of the management. While to ensure data consistency, the agent sends all object status data of a certain type each time, which is called a bundle. And also the manager has a complex message confirmation methods. Which seems not elegant enough and CloudNative. 
 
