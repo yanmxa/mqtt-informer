@@ -9,8 +9,8 @@ import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/yanmxa/mqtt-informer/pkg/apis"
 	"github.com/yanmxa/mqtt-informer/pkg/config"
-	"github.com/yanmxa/mqtt-informer/pkg/constant"
 	"github.com/yanmxa/mqtt-informer/pkg/informers"
+	"github.com/yanmxa/mqtt-informer/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -107,12 +107,7 @@ func (d *defaultSenderTransport) watchResponse(ctx context.Context, id types.UID
 			}
 
 			obj := e.Object.(*unstructured.Unstructured)
-			labels := obj.GetLabels()
-			if labels == nil {
-				labels = map[string]string{}
-			}
-			labels[constant.ClusterLabelKey] = config.ClusterName
-			obj.SetLabels(labels)
+			utils.ConvertToGlobalObj(obj, config.ClusterName)
 
 			response := &apis.WatchResponseMessage{
 				Type:   e.Type,
@@ -154,13 +149,8 @@ func (d *defaultSenderTransport) sendListResponses(ctx context.Context, id types
 		return err
 	}
 
-	for i, obj := range objs.Items {
-		labels := obj.GetLabels()
-		if labels == nil {
-			labels = map[string]string{}
-		}
-		labels[constant.ClusterLabelKey] = config.ClusterName
-		objs.Items[i].SetLabels(labels)
+	for _, obj := range objs.Items {
+		utils.ConvertToGlobalObj(&obj, config.ClusterName)
 	}
 
 	response := &apis.ListResponseMessage{

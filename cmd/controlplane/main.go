@@ -22,7 +22,6 @@ import (
 
 	"github.com/yanmxa/mqtt-informer/pkg/client"
 	"github.com/yanmxa/mqtt-informer/pkg/config"
-	"github.com/yanmxa/mqtt-informer/pkg/constant"
 	"github.com/yanmxa/mqtt-informer/pkg/informers"
 )
 
@@ -38,7 +37,7 @@ func main() {
 		config.SignalTopic, config.PayloadTopic)
 
 	gvr := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
-	informer := informerFactory.ForResource(gvr)
+	secretInformer := informerFactory.ForResource(gvr)
 
 	restConfig, err := clientcmd.BuildConfigFromFlags("", config.KubeConfig)
 	if err != nil {
@@ -55,13 +54,14 @@ func main() {
 		panic(err.Error())
 	}
 
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	// sharedIndexInformer := informer.Informer()
+
+	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			accessor, _ := meta.Accessor(obj)
 			if _, ok := accessor.GetLabels()["mqtt-resource"]; !ok {
 				return
 			}
-			accessor = convertToGlobalObj(accessor)
 			validateNamespace(kubeClient, accessor.GetNamespace())
 
 			accessor.SetResourceVersion("")
@@ -78,7 +78,7 @@ func main() {
 				return
 			}
 
-			klog.Infof("Added %s/%s", accessor.GetName(), accessor.GetNamespace())
+			klog.Infof("Added %s/%s", accessor.GetNamespace(), accessor.GetName())
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldAccessor, _ := meta.Accessor(oldObj)
@@ -86,14 +86,11 @@ func main() {
 			if _, ok := newAccessor.GetLabels()["mqtt-resource"]; !ok {
 				return
 			}
-			newAccessor = convertToGlobalObj(newAccessor)
-
-			oldUnstructuredObj, err := dynamicClient.Resource(gvr).Namespace(newAccessor.GetNamespace()).Get(ctx, newAccessor.GetName(), metav1.GetOptions{})
+			oldUnstructuredObj, err := dynamicClient.Resource(gvr).Namespace(oldAccessor.GetNamespace()).Get(ctx, oldAccessor.GetName(), metav1.GetOptions{})
 			if err != nil {
 				klog.Error(err)
 				return
 			}
-
 			newUnstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(newAccessor)
 			if err != nil {
 				klog.Error(err)
@@ -114,31 +111,17 @@ func main() {
 			if _, ok := accessor.GetLabels()["mqtt-resource"]; !ok {
 				return
 			}
-			accessor = convertToGlobalObj(accessor)
 			err := dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Delete(ctx, accessor.GetName(), metav1.DeleteOptions{})
 			if err != nil {
 				klog.Error(err)
 				return
 			}
-			klog.Infof("Deleted %s/%s", accessor.GetName(), accessor.GetNamespace())
+			klog.Infof("Deleted %s/%s", accessor.GetNamespace(), accessor.GetName())
 		},
 	})
 
 	informerFactory.Start()
 	<-ctx.Done()
-}
-
-func convertToGlobalObj(obj metav1.Object) metav1.Object {
-	name := obj.GetName()
-	namespace := obj.GetNamespace()
-	clusterName := obj.GetLabels()[constant.ClusterLabelKey]
-	if namespace == "" {
-		obj.SetName(clusterName + "." + name)
-	} else {
-		obj.SetName(namespace + "." + name)
-		obj.SetNamespace(clusterName)
-	}
-	return obj
 }
 
 func validateNamespace(kubeClient *kubernetes.Clientset, namespace string) error {

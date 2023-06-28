@@ -1,13 +1,5 @@
 # MQTT Informer
 
-## Description 
-![001](./docs/images/001.png)
-![002](./docs/images/002.png)
-### Case 1: As a monitor to view resources from clusters
-![003](./docs/images/003.png)
-
-
-
 ## Start eclipse-mosquitto MQTT Broker
 ```bash
 echo "listener 1883 0.0.0.0
@@ -15,8 +7,38 @@ allow_anonymous true" > samples/mosquitto.conf
 docker run --rm --name mosquitto -p 1883:1883 -v "$(pwd)/samples/mosquitto.conf:/mosquitto/config/mosquitto.conf" eclipse-mosquitto
 ```
 
+## Does the informer have to reflect ETCD?
+| https://github.com/qiujian16/events-informer
+![001](./docs/images/001.png)
+![002](./docs/images/002.png)
+
+## Scenario 1: As a monitor to view resources from clusters
+![003](./docs/images/003.png)
+
 ## Connect to the broker
 ```bash
-./bin/source --broker tcp://127.0.0.1:1883 --client-id sourceId --signal-topic /signal --payload-topic /payload
+./bin/syncer --broker tcp://127.0.0.1:1883 --client-id sourceId --signal-topic /signal --payload-topic /payload --cluster cluster1
 ./bin/controlplane --broker tcp://127.0.0.1:1883 --client-id controlplaneId --signal-topic /signal --payload-topic /payload
+```
+
+### Pros
+- Using informer's List and Watch mechanism, which can ensure the consistency of data from the clusters end to the hub side.
+- The hub side can extend scalability by connecting the informer to a persistent database
+  - Replace the informer local cache with a database like RDB/KV database
+  - Persist the resources to the RDB/KV database in the informer's event handler(For scalability, LocalCache needs to be disabled)
+
+
+### Questions: 
+- How to distribute the workload from hub to these clusters?
+- How to reconcile the cluster resources by the hub spec, such as deleting a resource on the cluster to ensure it can be recreated?
+- How to view the cluster resources status from hub view?
+
+### Scenario 2: Use bidirectional informer to manage clusters
+![004](./docs/images/004.png)
+
+
+## Connect to the broker
+```bash
+./bin/agent --broker tcp://127.0.0.1:1883 --client-id sourceId --signal-topic /signal --payload-topic /payload
+./bin/hub --broker tcp://127.0.0.1:1883 --client-id controlplaneId --signal-topic /signal --payload-topic /payload
 ```
