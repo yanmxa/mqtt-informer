@@ -10,16 +10,20 @@ Transport(Message Queue) can **decouple**, improve **scalability**, and peak sha
 
 In order to gain a large scalability, [Mutilcluster-Global-Hub](https://github.com/stolostron/multicluster-global-hub) brings transport to increases the cluster fleet size of the management. While to ensure data consistency, the agent sends all object status data of a certain type each time, which is called a bundle. And also the manager has a complex message confirmation methods. Which seems not elegant enough and CloudNative. 
 
-![twins](./docs/images/twins.png)
+<!-- ![twins](./docs/images/twins.png =100x20) -->
+<img src="./docs/images/twins.png" width="100%" height="200px">
 
 In fact, to ensure the ETCD data and kubernetes informer local cache to be consistent, the List/watch mechanism comes out in time. Regularly synchronize full data to ensure that the data will not be lost, and watch incremental update to avoid load performance degradation caused by synchronizing full data each time. In addition, there seems to be too much in common between Watch's Event and Transport's Message. So I have been thinking about how to make this informer to watch the message from transport instead of event from ETCD, this will definitely bring new value to Cloud platform management. 
 
-![001](./docs/images/002.png)
+![002](./docs/images/002.png)
+<!-- <img src="./docs/images/002.png" width="100%" height="40%"> -->
 In eliminating the gap between transport as Informer's data source, there is an important issue that needs to be addressed:
 How to make transport respond to Informer's List/Watch like ETCD? Thanks to the [event-informer](https://github.com/qiujian16/events-informer) for bringing us an idea to solve this problem.
 
 | Now I will use MQTT as a transport to integrate with informer to do some interesting experiments.
-![feel the power](./docs/images/feel-the-power.png)
+<!-- ![feel the power](./docs/images/feel-the-power.png){ width=50% } -->
+<img src="./docs/images/feel-the-power.png" width="100%" height="220">
+
 
 ## Start a transport: eclipse-mosquitto MQTT Broker
 ```bash
