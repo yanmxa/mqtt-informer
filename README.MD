@@ -58,8 +58,9 @@ make build
 - How to reconcile the cluster resources by the hub spec, such as deleting a resource on the cluster to ensure it can be recreated?
 - How to view the cluster resources status from hub view?
 
-## Scenario 2: Use bidirectional informer to deploy workload to cluster
-![004](./docs/images/004.png)
+## Scenario 2: Using bidirectional informer to deploy workload
+
+![bidirectional-informer](./docs/images/bidirectional-informer.png)
 
 ### Demo
 ```bash
