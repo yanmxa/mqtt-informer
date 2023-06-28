@@ -2,8 +2,8 @@ package client
 
 import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
-	"github.com/yanmxa/mqtt-informer/pkg/config"
-	"github.com/yanmxa/mqtt-informer/pkg/utils"
+	"github.com/yanmxa/transport-informer/pkg/config"
+	"github.com/yanmxa/transport-informer/pkg/utils"
 )
 
 func GetClient(config *config.ClientConfig) MQTT.Client {

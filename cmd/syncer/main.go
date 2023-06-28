@@ -10,9 +10,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
-	"github.com/yanmxa/mqtt-informer/pkg/client"
-	"github.com/yanmxa/mqtt-informer/pkg/config"
-	"github.com/yanmxa/mqtt-informer/pkg/senders"
+	"github.com/yanmxa/transport-informer/pkg/client"
+	"github.com/yanmxa/transport-informer/pkg/config"
+	"github.com/yanmxa/transport-informer/pkg/senders"
 )
 
 func main() {

@@ -5,8 +5,8 @@ import (
 	"os"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
-	"github.com/yanmxa/mqtt-informer/pkg/client"
-	"github.com/yanmxa/mqtt-informer/pkg/config"
+	"github.com/yanmxa/transport-informer/pkg/client"
+	"github.com/yanmxa/transport-informer/pkg/config"
 )
 
 func main() {

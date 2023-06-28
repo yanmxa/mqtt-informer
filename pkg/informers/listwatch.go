@@ -8,8 +8,8 @@ import (
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
-	"github.com/yanmxa/mqtt-informer/pkg/apis"
-	"github.com/yanmxa/mqtt-informer/pkg/config"
+	"github.com/yanmxa/transport-informer/pkg/apis"
+	"github.com/yanmxa/transport-informer/pkg/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"

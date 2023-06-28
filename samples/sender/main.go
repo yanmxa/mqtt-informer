@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yanmxa/mqtt-informer/pkg/client"
-	"github.com/yanmxa/mqtt-informer/pkg/config"
+	"github.com/yanmxa/transport-informer/pkg/client"
+	"github.com/yanmxa/transport-informer/pkg/config"
 )
 
 func main() {

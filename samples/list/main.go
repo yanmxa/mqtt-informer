@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/yanmxa/mqtt-informer/pkg/apis"
-	"github.com/yanmxa/mqtt-informer/pkg/informers"
+	"github.com/yanmxa/transport-informer/pkg/apis"
+	"github.com/yanmxa/transport-informer/pkg/informers"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 

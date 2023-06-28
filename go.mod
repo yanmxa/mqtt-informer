@@ -1,4 +1,4 @@
-module github.com/yanmxa/mqtt-informer
+module github.com/yanmxa/transport-informer
 
 go 1.20
 
