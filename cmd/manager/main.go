@@ -20,20 +20,18 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
-	"github.com/yanmxa/transport-informer/pkg/client"
 	"github.com/yanmxa/transport-informer/pkg/config"
-	"github.com/yanmxa/transport-informer/pkg/informers"
+	informers "github.com/yanmxa/transport-informer/pkg/informer"
 )
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	// ctx := context.Background()
 
 	config := config.GetClientConfig()
-	client := client.GetClient(config)
+	mqttClient := config.GetMQTTClient(config)
 
-	informerFactory := informers.NewSharedMessageInformerFactory(ctx, client, 5*time.Minute,
+	informerFactory := informers.NewSharedMessageInformerFactory(ctx, mqttClient, 5*time.Minute,
 		config.SignalTopic, config.PayloadTopic)
 
 	gvr := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}

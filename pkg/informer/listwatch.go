@@ -1,4 +1,4 @@
-package informers
+package informer
 
 import (
 	"context"
@@ -122,7 +122,6 @@ func (e *MessageListWatcher) watch(ctx context.Context, options metav1.ListOptio
 		return nil, err
 	}
 
-	// send the watch message, TODO: change it to sender topic
 	if !e.client.IsConnected() {
 		if token := e.client.Connect(); token.Wait() && token.Error() != nil {
 			return nil, token.Error()
@@ -145,7 +144,6 @@ func (e *MessageListWatcher) stopWatch() {
 		metav1.ListOptions{})
 	transportMessage := stopWatchMessage.ToMessage()
 
-	// send the watch message, TODO: change it to sender topic
 	if token := e.client.Connect(); token.Wait() && token.Error() != nil {
 		utilruntime.HandleError(token.Error())
 	}
@@ -166,7 +164,6 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 		return nil, err
 	}
 
-	// send the list message, TODO: change it to sender topic
 	if !e.client.IsConnected() {
 		if token := e.client.Connect(); token.Wait() && token.Error() != nil {
 			return nil, token.Error()
@@ -207,15 +204,8 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 	}
 }
 
-type TransportMessage struct {
-	Type    string `json:"type"`
-	ID      string `json:"id"`
-	Source  string `json:"source"`
-	Payload []byte `json:"payload"`
-}
-
 type ListWatchMessage interface {
-	ToMessage() TransportMessage
+	ToMessage() apis.TransportMessage
 }
 
 type ListWatchMsg struct {
@@ -240,8 +230,8 @@ func newListWatchMsg(source, mode, namespace string, gvr schema.GroupVersionReso
 	}
 }
 
-func (l *ListWatchMsg) ToMessage() TransportMessage {
-	msg := TransportMessage{}
+func (l *ListWatchMsg) ToMessage() apis.TransportMessage {
+	msg := apis.TransportMessage{}
 
 	data := &apis.RequestMessage{
 		Namespace: l.namespace,

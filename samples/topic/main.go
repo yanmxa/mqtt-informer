@@ -4,13 +4,12 @@ import (
 	"log"
 	"time"
 
-	"github.com/yanmxa/transport-informer/pkg/client"
 	"github.com/yanmxa/transport-informer/pkg/config"
 )
 
 func main() {
 	sendConfig := config.GetClientConfig()
-	c := client.GetClient(sendConfig)
+	c := config.GetMQTTClient(sendConfig)
 
 	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())

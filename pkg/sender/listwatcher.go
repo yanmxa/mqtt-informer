@@ -1,4 +1,4 @@
-package senders
+package sender
 
 import (
 	"context"
@@ -10,21 +10,21 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-type dynamicSender struct {
+type listWatcher struct {
 	client dynamic.Interface
 }
 
-func NewDynamicSender(client dynamic.Interface) Sender {
-	return &dynamicSender{
+func NewDynamicListWatcher(client dynamic.Interface) ListWatcher {
+	return &listWatcher{
 		client: client,
 	}
 }
 
-func (d *dynamicSender) List(namespace string, gvr schema.GroupVersionResource, options metav1.ListOptions) (*unstructured.UnstructuredList, error) {
+func (d *listWatcher) List(namespace string, gvr schema.GroupVersionResource, options metav1.ListOptions) (*unstructured.UnstructuredList, error) {
 	return d.client.Resource(gvr).Namespace(namespace).List(context.TODO(), options)
 }
 
-func (d *dynamicSender) Watch(namespace string, gvr schema.GroupVersionResource, options metav1.ListOptions) (
+func (d *listWatcher) Watch(namespace string, gvr schema.GroupVersionResource, options metav1.ListOptions) (
 	watch.Interface, error,
 ) {
 	return d.client.Resource(gvr).Namespace(namespace).Watch(context.TODO(), options)

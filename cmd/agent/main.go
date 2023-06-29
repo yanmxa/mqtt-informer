@@ -10,9 +10,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
-	"github.com/yanmxa/transport-informer/pkg/client"
 	"github.com/yanmxa/transport-informer/pkg/config"
-	"github.com/yanmxa/transport-informer/pkg/senders"
+	"github.com/yanmxa/transport-informer/pkg/sender"
 )
 
 func main() {
@@ -20,16 +19,15 @@ func main() {
 	defer cancel()
 
 	clientConfig := config.GetClientConfig()
-	client := client.GetClient(clientConfig)
-
+	transportClient := config.GetMQTTClient(clientConfig)
 	restConfig, err := clientcmd.BuildConfigFromFlags("", clientConfig.KubeConfig)
 	if err != nil {
 		klog.Fatalf("failed to build config, %v", err)
 	}
-
 	dynamicClient := dynamic.NewForConfigOrDie(restConfig)
-	s := senders.NewDynamicSender(dynamicClient)
-	transport := senders.NewDefaultSenderTransport(s, client, clientConfig.SignalTopic, clientConfig.PayloadTopic)
 
-	transport.Run(ctx)
+	sender := sender.NewDefaultSender(dynamicClient, transportClient)
+	sender.Start(ctx, clientConfig.SignalTopic)
+	sender.Send(ctx, clientConfig.PayloadTopic) // this is a blocking call
+	sender.Stop()
 }

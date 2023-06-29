@@ -1,4 +1,4 @@
-package senders
+package sender
 
 import (
 	"context"
@@ -10,11 +10,13 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 )
 
-type Sender interface {
+type ListWatcher interface {
 	List(namespace string, gvr schema.GroupVersionResource, options metav1.ListOptions) (*unstructured.UnstructuredList, error)
 	Watch(namespace string, gvr schema.GroupVersionResource, options metav1.ListOptions) (watch.Interface, error)
 }
 
-type SenderTransport interface {
-	Run(ctx context.Context)
+type Sender interface {
+	Start(ctx context.Context, signalTopic string)
+	Send(ctx context.Context, payloadTopic string)
+	Stop()
 }

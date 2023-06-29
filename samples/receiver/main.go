@@ -5,13 +5,12 @@ import (
 	"os"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
-	"github.com/yanmxa/transport-informer/pkg/client"
 	"github.com/yanmxa/transport-informer/pkg/config"
 )
 
 func main() {
 	receiverConfig := config.GetClientConfig()
-	client := client.GetClient(receiverConfig)
+	client := config.GetMQTTClient(receiverConfig)
 
 	choke := make(chan [2]string)
 	// opts.SetDefaultPublishHandler(func(client MQTT.Client, msg MQTT.Message) {

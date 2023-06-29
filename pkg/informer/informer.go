@@ -1,4 +1,4 @@
-package informers
+package informer
 
 import (
 	"context"

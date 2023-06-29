@@ -1,4 +1,4 @@
-package informers
+package informer
 
 import (
 	"encoding/json"
@@ -36,7 +36,7 @@ func (w *messageWatcher) Stop() {
 	w.stop()
 }
 
-func (w *messageWatcher) process(transportMsg TransportMessage) error {
+func (w *messageWatcher) process(transportMsg apis.TransportMessage) error {
 	// klog.Infof("process message(%s): %s", transportMsg.ID, transportMsg.Type)
 	if w.uid != types.UID(transportMsg.ID) {
 		return nil

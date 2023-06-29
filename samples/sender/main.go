@@ -10,7 +10,7 @@ import (
 
 func main() {
 	sendConfig := config.GetClientConfig()
-	c := client.GetClient(sendConfig)
+	c := client.GetMQTTClient(sendConfig)
 
 	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())

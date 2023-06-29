@@ -10,6 +10,21 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 )
 
+type Mode string
+
+const (
+	ModeList  Mode = "list"
+	ModeWatch Mode = "watch"
+	ModeStop  Mode = "stopwatch"
+)
+
+type TransportMessage struct {
+	Type    string `json:"type"`
+	ID      string `json:"id"`
+	Source  string `json:"source"`
+	Payload []byte `json:"payload"`
+}
+
 type RequestMessage struct {
 	Namespace string             `json:"namespace"`
 	Options   metav1.ListOptions `json:"options"`

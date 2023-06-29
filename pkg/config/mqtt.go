@@ -1,12 +1,11 @@
-package client
+package config
 
 import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
-	"github.com/yanmxa/transport-informer/pkg/config"
 	"github.com/yanmxa/transport-informer/pkg/utils"
 )
 
-func GetClient(config *config.ClientConfig) MQTT.Client {
+func GetMQTTClient(config *ClientConfig) MQTT.Client {
 	opts := MQTT.NewClientOptions()
 	opts.AddBroker(config.Broker)
 	opts.SetClientID(config.ClientID)
