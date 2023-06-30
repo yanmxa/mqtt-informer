@@ -30,7 +30,7 @@ func main() {
 	defer cancel()
 
 	opt := option.ParseOptionFromFlag()
-	transporter := transport.NewMqttTransport(opt)
+	transporter := transport.NewMqttTransport(ctx, opt)
 
 	informerFactory := informers.NewSharedMessageInformerFactory(ctx, transporter, 5*time.Minute)
 

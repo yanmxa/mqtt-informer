@@ -52,6 +52,7 @@ require (
 )
 
 require (
+	github.com/eclipse/paho.golang v0.11.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
 	golang.org/x/net v0.11.0 // indirect

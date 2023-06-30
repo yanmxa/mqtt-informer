@@ -27,7 +27,7 @@ func main() {
 	}
 	dynamicClient := dynamic.NewForConfigOrDie(restConfig)
 
-	transporter := transport.NewMqttTransport(opt)
+	transporter := transport.NewMqttTransport(ctx, opt)
 
 	p := provider.NewDefaultProvider(opt.ClusterName, dynamicClient, transporter)
 
