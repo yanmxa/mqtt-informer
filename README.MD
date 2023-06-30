@@ -2,26 +2,39 @@
 
 ## Background
 ### Does the informer have to reflect ETCD? 
+![00](./docs/images/00.png)
+
+Kubernetes utilizes in-memory caching to effectively reduce the load pressure on the API server caused by a large number of controllers. The consistency between this cache and the persistent layer is ensured by ETCD, which provides a reliable List/Watch interface. So that the [informers can watch the desired sate of resources in a scalable and sustainable fashion. Beyond that, they also implement a resync mechanism that enforces periodic reconciliation, and is often used to make sure that the cluster state and the assumed state cached in memory do not drift(e.g., due bugs or network issues)](https://www.oreilly.com/library/view/programming-kubernetes/9781492047094/ch01.html).
+
 ![001](./docs/images/001.png)
+So far everything seems fine, but if we need to see the deployed resource not just in one cluster, but in multiple clusters. At this time, [8G's ETCD](https://github.com/etcd-io/etcd/issues/9771) might be inadequate. A more straightforward idea is to replace ETCD with other scalable databases, like kine, as an etcdshim that translates ETCD API to Postgres, MqSql and SQLit. Anther way is to find a reliably method for the controlplane to take advantage of ETCDs distributed on different clusters？
+
 ### Transporter might be an interesting candidate!
 
 ![message queue](./docs/images/message-queue.png)
-Transport(Message Queue) can **decouple**, improve **scalability**, and peak shaving and valley filling of the **flow rate**. These excellent features not only shine in application services, but also should also have important value in platform management. But when considering to use message queue, the topic that can't always be avoided is how to ensure **data consistency**.
-
-In order to gain a large scalability, [Mutilcluster-Global-Hub](https://github.com/stolostron/multicluster-global-hub) brings transport to increases the cluster fleet size of the management. While to ensure data consistency, the agent sends all object status data of a certain type each time, which is called a bundle. And also the manager has a complex message confirmation methods. Which seems not elegant enough and CloudNative. 
+Transport(Message Queue) can **decouple**, improve **scalability**, and peak shaving and valley filling of the **flow rate**. These excellent features not only shine in application services, But also should be of great value to platform management.
 
 ![twins](./docs/images/twins.png)
+The Kubernetes controller achieves the desired state of the resource through event accumulation. The message queue is to change the state of a real object through data streaming. There seem to be some similarities between Kubernetes Event and Transport Message.
 
-In fact, to ensure the ETCD data and kubernetes informer local cache to be consistent, the List/watch mechanism comes out in time. Regularly synchronize full data to ensure that the data will not be lost, and watch incremental update to avoid load performance degradation caused by synchronizing full data each time. In addition, there seems to be too much in common between Watch's Event and Transport's Message. So I have been thinking about how to make this informer to watch the message from transport instead of event from ETCD, this will definitely bring new value to Cloud platform management. 
+In order to gain a large scalability, [Mutilcluster-Global-Hub](https://github.com/stolostron/multicluster-global-hub) brings transport to increases the cluster fleet size of the management. While to ensure data consistency, the agent sends all object status data of a certain type each time, which is called a bundle. And also the manager has a complex message confirmation methods. Which seems not elegant enough and CloudNative.
+
+### How to make this informer to watch the transport message instead of ETCD event?
 
 ![002](./docs/images/002.png)
-<!-- <img src="./docs/images/002.png" width="100%" height="40%"> -->
-In eliminating the gap between transport as Informer's data source, there is an important issue that needs to be addressed:
-How to make transport respond to Informer's List/Watch like ETCD? Thanks to the [event-informer](https://github.com/qiujian16/events-informer) for bringing us an idea to solve this problem.
+To eliminate the gap between transport and ETCD, the first issue need to be addressed is:
+How to make transport respond to Informer's List/Watch like ETCD? Thanks to the [event-informer](https://github.com/qiujian16/events-informer) for bringing us an idea. 
+
+### How to make Transport as reliable as ETCD？
+
+By introducing a custom Transport, we also bring an additional layer that is responsible for communication between the client and the data store. While we can configure the transport to handle failures or errors to decrease the risk of losing data, we still cannot guarantee that the transport will be as reliable as ETCD. 
+
+In order to improve the robustness of reconciliation in Informer, the resync mechanism is used to synchronize the full cache to the delta queue. This make the reconciliation process to handle failures or discrepancies gracefully. This also brings us a way to enhance the reliability of transport, that is, to add a mechanism to resync full data on transport. There are two ways to achieve it:
+- Informer lists all the resources from transport Periodically
+- The provider periodically sends all objects of a GVR from transport to Informer's watch channel, and Informer determines whether to process them based on ResourceVersion
 
 | Now I will use MQTT as a transport to integrate with informer to do some interesting experiments.
 ![feel the power](./docs/images/power.png)
-<!-- <img src="./docs/images/feel-the-power.png" width="100%" height="220"> -->
 
 
 ## Start a transport: eclipse-mosquitto MQTT Broker

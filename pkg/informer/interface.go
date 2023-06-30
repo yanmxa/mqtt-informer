@@ -27,6 +27,8 @@ type SharedInformerFactory interface {
 	// Shutdown may be called multiple times, even concurrently. All such calls will
 	// block until all goroutines have terminated.
 	// Shutdown()
+
+	ListAll()
 }
 
 // TweakListOptionsFunc defines the signature of a helper function

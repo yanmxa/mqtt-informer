@@ -99,7 +99,7 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 		select {
 		case e, ok := <-w.ResultChan():
 			if !ok {
-				klog.Warning("failed to watch the result")
+				klog.Warning("failed to watch the result", "event", e)
 				continue
 			}
 

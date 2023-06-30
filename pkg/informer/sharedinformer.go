@@ -103,3 +103,22 @@ func (f *messageSharedInformerFactory) WaitForCacheSync(stopCh <-chan struct{}) 
 	}
 	return res
 }
+
+func (f *messageSharedInformerFactory) ListAll() {
+	informers := func() map[schema.GroupVersionResource]cache.SharedIndexInformer {
+		f.lock.Lock()
+		defer f.lock.Unlock()
+
+		informers := map[schema.GroupVersionResource]cache.SharedIndexInformer{}
+		for informerType, informer := range f.informers {
+			if f.startedInformers[informerType] {
+				informers[informerType] = informer.Informer()
+			}
+		}
+		return informers
+	}()
+
+	for _, informer := range informers {
+		informer.GetStore().List()
+	}
+}
