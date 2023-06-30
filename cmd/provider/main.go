@@ -32,4 +32,6 @@ func main() {
 	p := provider.NewDefaultProvider(opt.ClusterName, dynamicClient, transporter)
 
 	p.Run(ctx)
+
+	transporter.GetClient().Disconnect(250)
 }

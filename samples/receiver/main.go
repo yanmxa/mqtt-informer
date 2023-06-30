@@ -22,7 +22,7 @@ func main() {
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
-	if token := client.Subscribe(opt.PayloadTopic, opt.QoS,
+	if token := client.Subscribe(opt.ReceiveTopic, opt.QoS,
 		func(client MQTT.Client, msg MQTT.Message) {
 			// fmt.Println("received message: ", msg.Topic(), string(msg.Payload()))
 			choke <- [2]string{msg.Topic(), string(msg.Payload())}

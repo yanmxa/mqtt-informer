@@ -31,8 +31,8 @@ func NewMqttTransport(opt *option.Options) *mqttTransport {
 	}
 	return &mqttTransport{
 		client:       MQTT.NewClient(clientOpts),
-		receiveTopic: opt.SignalTopic,
-		sendTopic:    opt.PayloadTopic,
+		receiveTopic: opt.ReceiveTopic,
+		sendTopic:    opt.SendTopic,
 		QoS:          opt.QoS,
 		Retained:     opt.Retained,
 		messageChan:  make(chan apis.TransportMessage),
@@ -58,6 +58,7 @@ func (t *mqttTransport) Receive() (Receiver, error) {
 	}
 	receiver := NewDefaultReceiver()
 	klog.Infof("subscribing topic: %s", t.receiveTopic)
+	t.waitUntilConnected()
 	if token := t.client.Subscribe(t.receiveTopic, t.QoS, func(client MQTT.Client, msg MQTT.Message) {
 		transportMsg := &apis.TransportMessage{}
 		err := json.Unmarshal(msg.Payload(), transportMsg)
@@ -71,6 +72,7 @@ func (t *mqttTransport) Receive() (Receiver, error) {
 		receiver.Stop()
 		return nil, token.Error()
 	}
+	klog.Info("start receiving message")
 	return receiver, nil
 }
 
