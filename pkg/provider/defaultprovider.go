@@ -99,11 +99,15 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 		select {
 		case e, ok := <-w.ResultChan():
 			if !ok {
-				klog.Error("failed to watch the result")
-				return
+				klog.Warning("failed to watch the result")
+				continue
 			}
 
-			obj := e.Object.(*unstructured.Unstructured)
+			obj, ok := e.Object.(*unstructured.Unstructured)
+			if !ok {
+				klog.Warning("failed to convert object to unstructured")
+				continue
+			}
 			utils.ConvertToGlobalObj(obj, d.clusterName)
 
 			response := &apis.WatchResponseMessage{
@@ -112,8 +116,7 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 			}
 			res, err := json.Marshal(response)
 			if err != nil {
-				klog.Error(err)
-				return
+				klog.Warning(err)
 			}
 
 			msg := apis.TransportMessage{}
@@ -125,7 +128,7 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 			klog.Infof("send watch message(%s): %s", msg.ID, msg.Type)
 			err = d.transporter.Send(msg)
 			if err != nil {
-				klog.Errorf("failed to send watch object with error: %v", err)
+				klog.Warning("failed to send watch object with error: %v", err)
 			}
 		case <-watchCtx.Done():
 			return

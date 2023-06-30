@@ -13,7 +13,12 @@ import (
 	"github.com/yanmxa/transport-informer/pkg/option"
 	"github.com/yanmxa/transport-informer/pkg/provider"
 	"github.com/yanmxa/transport-informer/pkg/transport"
+	"github.com/yanmxa/transport-informer/pkg/utils"
 )
+
+func init() {
+	klog.SetLogger(utils.DefaultLogger())
+}
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

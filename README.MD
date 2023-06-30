@@ -39,9 +39,9 @@ docker run --rm --name mosquitto -p 1883:1883 -v "$(pwd)/samples/mosquitto.conf:
 # build binary
 make build
 # cluster1 cluster
-./bin/provider --broker tcp://127.0.0.1:1883 --client-id providerId --send /provider/payload --receive /informer/signal --cluster cluster1
+./bin/provider --broker 127.0.0.1:1883 --client-id providerId --send /provider/payload --receive /informer/signal --cluster cluster1
 # controlplane cluster
-./bin/informer --broker tcp://127.0.0.1:1883 --client-id informerId --send /informer/signal --receive /provider/payload
+./bin/informer --broker 127.0.0.1:1883 --client-id informerId --send /informer/signal --receive /provider/payload
 ```
 > Create/update/delete resource on cluster1, then check the resource on controlplane cluster
 

@@ -13,18 +13,18 @@ import (
 )
 
 type messageWatcher struct {
-	uid    types.UID
-	gvr    schema.GroupVersionResource
-	stop   func()
-	result chan watch.Event
+	uid              types.UID
+	gvr              schema.GroupVersionResource
+	result           chan watch.Event
+	externalStopFunc func()
 }
 
-func newMessageWatcher(uid types.UID, stop func(), gvr schema.GroupVersionResource, chanSize int) *messageWatcher {
+func newMessageWatcher(uid types.UID, externalStopFunc func(), gvr schema.GroupVersionResource, chanSize int) *messageWatcher {
 	return &messageWatcher{
-		uid:    uid,
-		gvr:    gvr,
-		result: make(chan watch.Event, chanSize),
-		stop:   stop,
+		uid:              uid,
+		gvr:              gvr,
+		result:           make(chan watch.Event, chanSize),
+		externalStopFunc: externalStopFunc,
 	}
 }
 
@@ -33,7 +33,11 @@ func (w *messageWatcher) ResultChan() <-chan watch.Event {
 }
 
 func (w *messageWatcher) Stop() {
-	w.stop()
+	close(w.result)
+	if w.externalStopFunc != nil {
+		// klog.Info("stop watch message from transport ", w.gvr)
+		w.externalStopFunc()
+	}
 }
 
 func (w *messageWatcher) process(transportMsg apis.TransportMessage) error {

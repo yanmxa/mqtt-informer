@@ -104,7 +104,7 @@ func (t *mqttTransport) Receive() (Receiver, error) {
 			klog.Error(err)
 			return
 		}
-		klog.Infof("received message: %s - %s", transportMsg.ID, transportMsg.Type)
+		klog.Infof("received message(%s): %s", transportMsg.ID, transportMsg.Type)
 		messageChan <- *transportMsg
 	})
 

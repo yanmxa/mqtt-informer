@@ -23,7 +23,12 @@ import (
 	informers "github.com/yanmxa/transport-informer/pkg/informer"
 	"github.com/yanmxa/transport-informer/pkg/option"
 	"github.com/yanmxa/transport-informer/pkg/transport"
+	"github.com/yanmxa/transport-informer/pkg/utils"
 )
+
+func init() {
+	klog.SetLogger(utils.DefaultLogger())
+}
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -68,8 +73,8 @@ func main() {
 				return
 			}
 			_, err = dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Create(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.CreateOptions{})
-			if err != nil {
-				klog.Error(err)
+			if errors.IsAlreadyExists(err) {
+				klog.Infof("Already exists %s/%s", accessor.GetNamespace(), accessor.GetName())
 				return
 			}
 
@@ -117,6 +122,7 @@ func main() {
 
 	informerFactory.Start()
 	<-ctx.Done()
+	time.Sleep(5 * time.Second) // wait for the informer send stop signal to transporter
 	transporter.Stop()
 }
 

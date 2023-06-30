@@ -49,7 +49,7 @@ func NewMessageListWatcher(ctx context.Context, t transport.Transport, namespace
 		for {
 			select {
 			case <-ctx.Done():
-				klog.Info("context done!")
+				klog.Info("context done! stop receive message...")
 				return
 			case transportMsg := <-receiver.MessageChan():
 				err := lw.process(ctx, &transportMsg)
@@ -66,7 +66,7 @@ func NewMessageListWatcher(ctx context.Context, t transport.Transport, namespace
 func (lw *MessageListWatcher) process(ctx context.Context, transportMessage *apis.TransportMessage) error {
 	lw.rwlock.RLock()
 	defer lw.rwlock.RUnlock()
-	klog.Infof("received message(%s): %s", transportMessage.ID, transportMessage.Type)
+	// klog.Infof("received message(%s): %s", transportMessage.ID, transportMessage.Type)
 
 	switch transportMessage.Type {
 	case apis.MessageListResponseType(lw.gvr): // response.list.%s
@@ -104,11 +104,11 @@ func (e *MessageListWatcher) Watch(options metav1.ListOptions) (watch.Interface,
 	e.transporter.Send(transportMessage)
 	klog.Infof("request to watch message(%s): %s", transportMessage.ID, transportMessage.Type)
 
-	e.watcher = newMessageWatcher(watchMessage.uid, e.stopWatch, e.gvr, 10)
+	e.watcher = newMessageWatcher(watchMessage.uid, e.watcherStop, e.gvr, 10)
 	return e.watcher, nil
 }
 
-func (e *MessageListWatcher) stopWatch() {
+func (e *MessageListWatcher) watcherStop() {
 	stopWatchMessage := newListWatchMsg("informer", apis.MessageStopWatchType(e.gvr), e.namespace, e.gvr,
 		metav1.ListOptions{})
 	transportMessage := stopWatchMessage.ToMessage()
