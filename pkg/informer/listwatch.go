@@ -6,103 +6,92 @@ import (
 	"fmt"
 	"sync"
 
-	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 	"github.com/yanmxa/transport-informer/pkg/apis"
-	"github.com/yanmxa/transport-informer/pkg/config"
+	"github.com/yanmxa/transport-informer/pkg/transport"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/klog/v2"
 )
 
 type MessageListWatcher struct {
-	client         MQTT.Client
-	gvr            schema.GroupVersionResource
-	source         string
-	namespace      string
 	ctx            context.Context
+	gvr            schema.GroupVersionResource
+	namespace      string
 	watcher        *messageWatcher
 	listResultChan map[types.UID]chan apis.ListResponseMessage
 	rwlock         sync.RWMutex
 
-	signalTopic  string
-	payloadTopic string
+	transporter transport.Transport
 }
 
-func NewMessageListWatcher(ctx context.Context, source, namespace string, client MQTT.Client,
-	gvr schema.GroupVersionResource, signalTopic, payloadTopic string,
+func NewMessageListWatcher(ctx context.Context, t transport.Transport, namespace string,
+	gvr schema.GroupVersionResource,
 ) *MessageListWatcher {
 	lw := &MessageListWatcher{
-		source:         source,
-		client:         client,
-		gvr:            gvr,
 		ctx:            ctx,
+		gvr:            gvr,
 		namespace:      namespace,
 		listResultChan: map[types.UID]chan apis.ListResponseMessage{},
-		signalTopic:    signalTopic,
-		payloadTopic:   payloadTopic,
+		transporter:    t,
 	}
 
-	// get message from subscribed topic
+	receiver, err := t.Receive()
+	if err != nil {
+		panic(err)
+	}
+
 	go func() {
-		if token := client.Connect(); token.Wait() && token.Error() != nil {
-			klog.Error(token.Error())
-			return
-		}
-
-		// start list/watch receiver
-		klog.Infof("start listening to payload topic: %s", payloadTopic)
-		if token := client.Subscribe(payloadTopic, config.QoS, func(client MQTT.Client, msg MQTT.Message) {
-			lw.rwlock.RLock()
-			defer lw.rwlock.RUnlock()
-
-			transportMessage := &TransportMessage{}
-			err := json.Unmarshal(msg.Payload(), transportMessage)
-			if err != nil {
-				klog.Error(err)
+		for {
+			select {
+			case <-ctx.Done():
+				receiver.Stop()
+				klog.Info("context done! receiver stopped")
 				return
-			}
-			klog.Infof("received payload message(%s): %s", transportMessage.ID, transportMessage.Type)
-
-			switch transportMessage.Type {
-			case apis.MessageListResponseType(lw.gvr): // response.list.%s
-				resultChan, ok := lw.listResultChan[types.UID(transportMessage.ID)]
-				if !ok {
-					klog.Error(fmt.Errorf("unable to find the related uid for list %s", transportMessage.ID))
-				}
-
-				listResponse := &apis.ListResponseMessage{}
-				err := json.Unmarshal(transportMessage.Payload, listResponse)
+			case transportMsg := <-receiver.MessageChan():
+				err := lw.process(ctx, &transportMsg)
 				if err != nil {
 					klog.Error(err)
-					return
-				}
-
-				resultChan <- *listResponse
-			case apis.MessageWatchResponseType(lw.gvr):
-				if lw.watcher == nil {
-					return
-				}
-				err := lw.watcher.process(*transportMessage)
-				if err != nil {
-					klog.Error(fmt.Errorf("unable to process message %s", transportMessage.Type))
 				}
 			}
-		}); token.Wait() && token.Error() != nil {
-			klog.Error(token.Error())
 		}
-
-		<-ctx.Done()
-		client.Disconnect(250)
-		klog.Infof("stop listening to payload topic: %s", payloadTopic)
 	}()
 
 	return lw
+}
+
+func (lw *MessageListWatcher) process(ctx context.Context, transportMessage *apis.TransportMessage) error {
+	lw.rwlock.RLock()
+	defer lw.rwlock.RUnlock()
+	klog.Infof("received message(%s): %s", transportMessage.ID, transportMessage.Type)
+
+	switch transportMessage.Type {
+	case apis.MessageListResponseType(lw.gvr): // response.list.%s
+		resultChan, ok := lw.listResultChan[types.UID(transportMessage.ID)]
+		if !ok {
+			return fmt.Errorf("unable to find the related uid for list %s", transportMessage.ID)
+		}
+
+		listResponse := &apis.ListResponseMessage{}
+		err := json.Unmarshal(transportMessage.Payload, listResponse)
+		if err != nil {
+			return err
+		}
+		resultChan <- *listResponse
+	case apis.MessageWatchResponseType(lw.gvr):
+		if lw.watcher == nil {
+			return fmt.Errorf("unable to find the related uid for watch %s", transportMessage.ID)
+		}
+		err := lw.watcher.process(*transportMessage)
+		if err != nil {
+			return fmt.Errorf("unable to process message %s", transportMessage.Type)
+		}
+	}
+	return nil
 }
 
 func (e *MessageListWatcher) List(options metav1.ListOptions) (runtime.Object, error) {
@@ -110,82 +99,45 @@ func (e *MessageListWatcher) List(options metav1.ListOptions) (runtime.Object, e
 }
 
 func (e *MessageListWatcher) Watch(options metav1.ListOptions) (watch.Interface, error) {
-	return e.watch(e.ctx, options)
-}
-
-func (e *MessageListWatcher) watch(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-	watchMessage := newListWatchMsg(e.source, apis.MessageWatchType(e.gvr), e.namespace, e.gvr, options)
+	watchMessage := newListWatchMsg("informer", apis.MessageWatchType(e.gvr), e.namespace, e.gvr, options)
 	transportMessage := watchMessage.ToMessage()
 
-	payload, err := json.Marshal(transportMessage)
-	if err != nil {
-		return nil, err
-	}
-
-	if !e.client.IsConnected() {
-		if token := e.client.Connect(); token.Wait() && token.Error() != nil {
-			return nil, token.Error()
-		}
-	}
-	token := e.client.Publish(e.signalTopic, config.QoS, config.Retained, payload)
-	token.Wait()
-	if token.Error() != nil {
-		return nil, token.Error()
-	}
-
+	e.transporter.Send(transportMessage)
 	klog.Infof("request to watch message(%s): %s", transportMessage.ID, transportMessage.Type)
-	e.watcher = newMessageWatcher(watchMessage.uid, e.stopWatch, e.gvr, 10)
 
+	e.watcher = newMessageWatcher(watchMessage.uid, e.stopWatch, e.gvr, 10)
 	return e.watcher, nil
 }
 
 func (e *MessageListWatcher) stopWatch() {
-	stopWatchMessage := newListWatchMsg(e.source, apis.MessageStopWatchType(e.gvr), e.namespace, e.gvr,
+	stopWatchMessage := newListWatchMsg("informer", apis.MessageStopWatchType(e.gvr), e.namespace, e.gvr,
 		metav1.ListOptions{})
 	transportMessage := stopWatchMessage.ToMessage()
 
-	if token := e.client.Connect(); token.Wait() && token.Error() != nil {
-		utilruntime.HandleError(token.Error())
+	klog.Infof("request to stop watch message(%s): %s", transportMessage.ID, transportMessage.Type)
+	err := e.transporter.Send(transportMessage)
+	if err != nil {
+		klog.Error(err)
 	}
-	token := e.client.Publish(e.signalTopic, config.QoS, config.Retained, transportMessage)
-	token.Wait()
-	if token.Error() != nil {
-		utilruntime.HandleError(token.Error())
-	}
-	defer e.client.Disconnect(10)
 }
 
 func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
-	listMessage := newListWatchMsg(e.source, apis.MessageListType(e.gvr), e.namespace, e.gvr, options)
-	transportMessage := listMessage.ToMessage()
+	listMessageRequest := newListWatchMsg("informer", apis.MessageListType(e.gvr), e.namespace, e.gvr, options)
+	transportMessage := listMessageRequest.ToMessage()
 
-	payload, err := json.Marshal(transportMessage)
+	klog.Infof("request to list message(%s): %s", transportMessage.ID, transportMessage.Type)
+	err := e.transporter.Send(transportMessage)
 	if err != nil {
 		return nil, err
 	}
 
-	if !e.client.IsConnected() {
-		if token := e.client.Connect(); token.Wait() && token.Error() != nil {
-			return nil, token.Error()
-		}
-	}
-
-	token := e.client.Publish(e.signalTopic, config.QoS, config.Retained, payload)
-	token.Wait()
-	if token.Error() != nil {
-		return nil, token.Error()
-	}
-
-	klog.Infof("request to list message(%s): %s", transportMessage.ID, transportMessage.Type)
-
 	objectList := &unstructured.UnstructuredList{}
-
 	// now start to receive the list response until endOfList is false
-	e.listResultChan[listMessage.uid] = make(chan apis.ListResponseMessage)
-	defer delete(e.listResultChan, listMessage.uid)
+	e.listResultChan[listMessageRequest.uid] = make(chan apis.ListResponseMessage)
+	defer delete(e.listResultChan, listMessageRequest.uid)
 	for {
 		select {
-		case response, ok := <-e.listResultChan[listMessage.uid]:
+		case response, ok := <-e.listResultChan[listMessageRequest.uid]:
 			if !ok {
 				return objectList, nil
 			}
@@ -204,11 +156,11 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 	}
 }
 
-type ListWatchMessage interface {
+type ListWatchRequest interface {
 	ToMessage() apis.TransportMessage
 }
 
-type ListWatchMsg struct {
+type ListWatchRequestMsg struct {
 	uid       types.UID
 	gvr       schema.GroupVersionResource
 	options   metav1.ListOptions
@@ -219,8 +171,8 @@ type ListWatchMsg struct {
 
 func newListWatchMsg(source, mode, namespace string, gvr schema.GroupVersionResource,
 	options metav1.ListOptions,
-) *ListWatchMsg {
-	return &ListWatchMsg{
+) *ListWatchRequestMsg {
+	return &ListWatchRequestMsg{
 		uid:       types.UID(uuid.New().String()),
 		gvr:       gvr,
 		options:   options,
@@ -230,7 +182,7 @@ func newListWatchMsg(source, mode, namespace string, gvr schema.GroupVersionReso
 	}
 }
 
-func (l *ListWatchMsg) ToMessage() apis.TransportMessage {
+func (l *ListWatchRequestMsg) ToMessage() apis.TransportMessage {
 	msg := apis.TransportMessage{}
 
 	data := &apis.RequestMessage{

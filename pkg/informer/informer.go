@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"github.com/yanmxa/transport-informer/pkg/transport"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -20,11 +20,10 @@ type messageInformer struct {
 }
 
 // NewFilteredMetadataInformer constructs a new informer for a metadata type.
-func NewFilteredMetadataInformer(ctx context.Context, client MQTT.Client, gvr schema.GroupVersionResource,
+func NewFilteredMetadataInformer(ctx context.Context, t transport.Transport, gvr schema.GroupVersionResource,
 	namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions TweakListOptionsFunc,
-	signal, payload string,
 ) informers.GenericInformer {
-	lw := NewMessageListWatcher(ctx, "mirror", namespace, client, gvr, signal, payload)
+	lw := NewMessageListWatcher(ctx, t, namespace, gvr)
 
 	return &messageInformer{
 		gvr: gvr,

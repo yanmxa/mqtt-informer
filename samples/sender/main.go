@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yanmxa/transport-informer/pkg/client"
-	"github.com/yanmxa/transport-informer/pkg/config"
+	"github.com/yanmxa/transport-informer/pkg/option"
+	"github.com/yanmxa/transport-informer/pkg/transport"
 )
 
 func main() {
-	sendConfig := config.GetClientConfig()
-	c := client.GetMQTTClient(sendConfig)
+	opt := option.ParseOptionFromFlag()
+	transporter := transport.NewMqttTransport(opt)
+	c := transporter.GetClient()
 
 	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
@@ -23,7 +24,7 @@ func main() {
 			break
 		}
 		text := fmt.Sprintf("this is msg #%d!", i)
-		token := c.Publish(sendConfig.PayloadTopic, sendConfig.QoS, sendConfig.Retained, text)
+		token := c.Publish(opt.PayloadTopic, opt.QoS, opt.Retained, text)
 		token.Wait()
 		if token.Error() != nil {
 			fmt.Println(token.Error())

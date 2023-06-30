@@ -35,14 +35,13 @@ docker run --rm --name mosquitto -p 1883:1883 -v "$(pwd)/samples/mosquitto.conf:
 ![003](./docs/images/003.png)
 
 ### Demo
-| Branch: view 
 ```bash
 # build binary
 make build
 # cluster1 cluster
-./bin/syncer --broker tcp://127.0.0.1:1883 --client-id sourceId --signal-topic /signal --payload-topic /payload --cluster cluster1
+./bin/provider --broker tcp://127.0.0.1:1883 --client-id sourceId --signal /signal --payload /payload --cluster cluster1
 # controlplane cluster
-./bin/controlplane --broker tcp://127.0.0.1:1883 --client-id controlplaneId --signal-topic /signal --payload-topic /payload
+./bin/informer --broker tcp://127.0.0.1:1883 --client-id controlplaneId --signal /signal --payload /payload
 ```
 > Create/update/delete resource on cluster1, then check the resource on controlplane cluster
 

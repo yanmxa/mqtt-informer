@@ -20,24 +20,24 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
-	"github.com/yanmxa/transport-informer/pkg/config"
 	informers "github.com/yanmxa/transport-informer/pkg/informer"
+	"github.com/yanmxa/transport-informer/pkg/option"
+	"github.com/yanmxa/transport-informer/pkg/transport"
 )
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	config := config.GetClientConfig()
-	mqttClient := config.GetMQTTClient(config)
+	opt := option.ParseOptionFromFlag()
+	transporter := transport.NewMqttTransport(opt)
 
-	informerFactory := informers.NewSharedMessageInformerFactory(ctx, mqttClient, 5*time.Minute,
-		config.SignalTopic, config.PayloadTopic)
+	informerFactory := informers.NewSharedMessageInformerFactory(ctx, transporter, 5*time.Minute)
 
 	gvr := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
 	secretInformer := informerFactory.ForResource(gvr)
 
-	restConfig, err := clientcmd.BuildConfigFromFlags("", config.KubeConfig)
+	restConfig, err := clientcmd.BuildConfigFromFlags("", opt.KubeConfig)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -45,15 +45,12 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-
-	// Create the Kubernetes client
 	kubeClient, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	// sharedIndexInformer := informer.Informer()
-
 	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			accessor, _ := meta.Accessor(obj)

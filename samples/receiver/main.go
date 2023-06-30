@@ -5,12 +5,14 @@ import (
 	"os"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
-	"github.com/yanmxa/transport-informer/pkg/config"
+	"github.com/yanmxa/transport-informer/pkg/option"
+	"github.com/yanmxa/transport-informer/pkg/transport"
 )
 
 func main() {
-	receiverConfig := config.GetClientConfig()
-	client := config.GetMQTTClient(receiverConfig)
+	opt := option.ParseOptionFromFlag()
+	transporter := transport.NewMqttTransport(opt)
+	client := transporter.GetClient()
 
 	choke := make(chan [2]string)
 	// opts.SetDefaultPublishHandler(func(client MQTT.Client, msg MQTT.Message) {
@@ -20,7 +22,7 @@ func main() {
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
-	if token := client.Subscribe(receiverConfig.PayloadTopic, receiverConfig.QoS,
+	if token := client.Subscribe(opt.PayloadTopic, opt.QoS,
 		func(client MQTT.Client, msg MQTT.Message) {
 			// fmt.Println("received message: ", msg.Topic(), string(msg.Payload()))
 			choke <- [2]string{msg.Topic(), string(msg.Payload())}

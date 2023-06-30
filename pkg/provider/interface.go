@@ -1,4 +1,4 @@
-package sender
+package provider
 
 import (
 	"context"
@@ -15,8 +15,7 @@ type ListWatcher interface {
 	Watch(namespace string, gvr schema.GroupVersionResource, options metav1.ListOptions) (watch.Interface, error)
 }
 
-type Sender interface {
-	Start(ctx context.Context, signalTopic string)
-	Send(ctx context.Context, payloadTopic string)
-	Stop()
+type Provider interface {
+	// Run blocks until the context is done.
+	Run(ctx context.Context) error
 }
