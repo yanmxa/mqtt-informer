@@ -16,9 +16,9 @@ type mqttTransport struct {
 	client       MQTT.Client
 	receiveTopic string
 	sendTopic    string
-	QoS          byte
-	Retained     bool
-	messageChan  chan apis.TransportMessage
+	qos          byte
+	retained     bool
+	receiver     Receiver
 }
 
 func NewMqttTransport(opt *option.Options) *mqttTransport {
@@ -33,9 +33,8 @@ func NewMqttTransport(opt *option.Options) *mqttTransport {
 		client:       MQTT.NewClient(clientOpts),
 		receiveTopic: opt.ReceiveTopic,
 		sendTopic:    opt.SendTopic,
-		QoS:          opt.QoS,
-		Retained:     opt.Retained,
-		messageChan:  make(chan apis.TransportMessage),
+		qos:          opt.QoS,
+		retained:     opt.Retained,
 	}
 }
 
@@ -45,7 +44,7 @@ func (t *mqttTransport) Send(msg apis.TransportMessage) error {
 		return err
 	}
 	t.waitUntilConnected()
-	token := t.client.Publish(t.sendTopic, t.QoS, t.Retained, payload)
+	token := t.client.Publish(t.sendTopic, t.qos, t.retained, payload)
 	token.Wait()
 	return token.Error()
 }
@@ -56,10 +55,13 @@ func (t *mqttTransport) Receive() (Receiver, error) {
 	if err != nil {
 		return nil, err
 	}
-	receiver := NewDefaultReceiver()
-	klog.Infof("subscribing topic: %s", t.receiveTopic)
-	t.waitUntilConnected()
-	if token := t.client.Subscribe(t.receiveTopic, t.QoS, func(client MQTT.Client, msg MQTT.Message) {
+	if t.receiver != nil {
+		klog.Info("receiver(%s) already started!", t.receiveTopic)
+		return t.receiver, nil
+	}
+	messageChan := make(chan apis.TransportMessage)
+	t.receiver = NewDefaultReceiver(messageChan)
+	if token := t.client.Subscribe(t.receiveTopic, t.qos, func(client MQTT.Client, msg MQTT.Message) {
 		transportMsg := &apis.TransportMessage{}
 		err := json.Unmarshal(msg.Payload(), transportMsg)
 		if err != nil {
@@ -67,13 +69,13 @@ func (t *mqttTransport) Receive() (Receiver, error) {
 			return
 		}
 		klog.Infof("received message: %s - %s", transportMsg.ID, transportMsg.Type)
-		receiver.Forward(*transportMsg)
+		messageChan <- *transportMsg
 	}); token.Wait() && token.Error() != nil {
-		receiver.Stop()
+		t.receiver.Stop()
 		return nil, token.Error()
 	}
-	klog.Info("start receiving message")
-	return receiver, nil
+	klog.Infof("receiver(%s) started!", t.receiveTopic)
+	return t.receiver, nil
 }
 
 func (t *mqttTransport) waitUntilConnected() error {
@@ -87,4 +89,15 @@ func (t *mqttTransport) waitUntilConnected() error {
 
 func (t *mqttTransport) GetClient() MQTT.Client {
 	return t.client
+}
+
+func (t *mqttTransport) Stop() {
+	if t.receiver != nil {
+		t.receiver.Stop()
+		klog.Infof("transport receiver(%s) stopped!", t.receiveTopic)
+	}
+	if t.client.IsConnected() {
+		t.client.Disconnect(250)
+		klog.Info("transport client disconnected!")
+	}
 }

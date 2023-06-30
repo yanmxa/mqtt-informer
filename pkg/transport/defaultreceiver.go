@@ -10,9 +10,9 @@ type defaultReceiver struct {
 	msgChan chan apis.TransportMessage
 }
 
-func NewDefaultReceiver() *defaultReceiver {
+func NewDefaultReceiver(messageChan chan apis.TransportMessage) *defaultReceiver {
 	return &defaultReceiver{
-		msgChan: make(chan apis.TransportMessage),
+		msgChan: messageChan,
 	}
 }
 
@@ -22,8 +22,4 @@ func (r *defaultReceiver) Stop() {
 
 func (r *defaultReceiver) MessageChan() <-chan apis.TransportMessage {
 	return r.msgChan
-}
-
-func (r *defaultReceiver) Forward(msg apis.TransportMessage) {
-	r.msgChan <- msg
 }

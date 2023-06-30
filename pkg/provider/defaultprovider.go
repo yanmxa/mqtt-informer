@@ -39,8 +39,7 @@ func (d *defaultProvider) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			receiver.Stop()
-			klog.Info("context done! receiver stopped")
+			klog.Info("context done!")
 			return nil
 		case transportMsg := <-receiver.MessageChan():
 			err := d.process(ctx, transportMsg)

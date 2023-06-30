@@ -117,7 +117,7 @@ func main() {
 
 	informerFactory.Start()
 	<-ctx.Done()
-	transporter.GetClient().Disconnect(250)
+	transporter.Stop()
 }
 
 func validateNamespace(kubeClient *kubernetes.Clientset, namespace string) error {

@@ -5,6 +5,7 @@ import "github.com/yanmxa/transport-informer/pkg/apis"
 type Transport interface {
 	Sender
 	Receive() (Receiver, error)
+	Stop()
 }
 
 type Sender interface {

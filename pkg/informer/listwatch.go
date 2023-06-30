@@ -49,8 +49,7 @@ func NewMessageListWatcher(ctx context.Context, t transport.Transport, namespace
 		for {
 			select {
 			case <-ctx.Done():
-				receiver.Stop()
-				klog.Info("context done! receiver stopped")
+				klog.Info("context done!")
 				return
 			case transportMsg := <-receiver.MessageChan():
 				err := lw.process(ctx, &transportMsg)
