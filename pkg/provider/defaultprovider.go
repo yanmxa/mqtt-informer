@@ -172,6 +172,5 @@ func (d *defaultProvider) sendListResponses(ctx context.Context, id types.UID, n
 		klog.Errorf("failed to send list objects with error: %v", err)
 		return err
 	}
-	klog.Info("send list response successfully")
 	return nil
 }

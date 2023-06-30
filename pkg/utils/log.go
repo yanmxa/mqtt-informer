@@ -20,7 +20,7 @@ var customLevelEncoder = func(level zapcore.Level, enc zapcore.PrimitiveArrayEnc
 }
 
 var customCallerEncoder = func(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
-	enc.AppendString("[" + caller.TrimmedPath() + "]")
+	// enc.AppendString("[" + caller.TrimmedPath() + "]")
 }
 
 func DefaultLogger() logr.Logger {
@@ -35,7 +35,7 @@ func DefaultLogger() logr.Logger {
 		EncodeTime:       customTimeEncoder,
 		EncodeLevel:      customLevelEncoder,
 		EncodeDuration:   zapcore.SecondsDurationEncoder,
-		LineEnding:       "\n", // "\n"
+		LineEnding:       " ", // "\n"
 		ConsoleSeparator: " ",
 	}
 	zapLoggerEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
