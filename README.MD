@@ -31,7 +31,17 @@ By introducing a custom Transport, we also bring an additional layer that is res
 
 In order to improve the robustness of reconciliation in Informer, the resync mechanism is used to synchronize the full cache to the delta queue. This make the reconciliation process to handle failures or discrepancies gracefully. This also brings us a way to enhance the reliability of transport, that is, to add a mechanism to resync full data on transport. There are two ways to achieve it:
 - Informer lists all the resources from transport Periodically
-- The provider periodically sends all objects of a GVR from transport to Informer's watch channel, and Informer determines whether to process them based on ResourceVersion
+- The provider periodically sends all objects of a GVR from transport to Informer's watch channel, and Informer determines whether to process them based on a message version.
+#### MQTT 
+ - Add message [acknowledgment mechanism](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/)
+    - QoS 1: A balance between reliability and efficiency, guaranteeing that the message reaches the receiver at least once while allowing for potential duplicates to be handled appropriately.
+    - QoS 2:  Be aware of the overhead and that the QoS 2 interaction takes more time to complete.
+
+  - [Persistent sessions](https://www.hivemq.com/blog/mqtt-essentials-part-7-persistent-session-queuing-messages/)
+    > Persistent sessions in MQTT allow a client to maintain its subscription and message state across multiple connections. When a client establishes a persistent session with an MQTT broker, the broker stores the client’s subscription information and any undelivered messages intended for the client. This way, if the client disconnects and reconnects later, it can resume communication seamlessly.
+
+  - Message Ordering: QoS 0 and QoS 2
+
 
 | Now I will use MQTT as a transport to integrate with informer to do some interesting experiments.
 ![feel the power](./docs/images/power.png)
