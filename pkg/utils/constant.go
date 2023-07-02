@@ -5,4 +5,5 @@ const (
 	ClusterTargetNamespaceLabelKey   = "hub.transport-informer/target-namespace"
 	HubClusterName                   = "hub"
 	ProviderReadyResponseTopic       = "provider/ready/response"
+	TransportResourceLabelKey        = "hub.transport-informer/resources"
 )

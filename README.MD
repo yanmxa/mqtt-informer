@@ -33,10 +33,6 @@ By introducing a custom Transport, we also bring an additional layer that is res
 In order to improve the robustness of reconciliation in Informer, the resync mechanism is used to synchronize the full cache to the delta queue. This make the reconciliation process to handle failures or discrepancies gracefully. This also brings us a way to enhance the reliability of transport.
 ![resync](./docs/images/resync.png)
 
-~~ that is, to add a mechanism to resync full data on transport. There are two ways to achieve it: 
-- Informer lists all the resources from transport Periodically 
-- The provider periodically sends all objects of a GVR from transport to Informer's watch channel, and Informer determines whether to process them based on a message version ~~
-
 #### MQTT 
 - Add message [acknowledgment mechanism](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/)
     - QoS 1: A balance between reliability and efficiency, guaranteeing that the message reaches the receiver at least once while allowing for potential duplicates to be handled appropriately.
@@ -60,7 +56,7 @@ docker run --rm --name mosquitto -p 1883:1883 -v "$(pwd)/samples/mosquitto.conf:
 ```
 
 ## Scenario 1: As a monitor to view resources of clusters
-![003](./docs/images/003.png)
+![provider-informer](./docs/images/provider-informer.png)
 
 ### Demo
 ```bash
@@ -90,14 +86,22 @@ make build
 ![bidirectional-informer](./docs/images/bidirectional-informer.png)
 
 ### Demo
-| Define all the topic based on hub
-```bash
-make build
-# cluster1 cluster
-./bin/agent --broker 127.0.0.1:1883 --client-id agentId --provider-send /manager/informer/payload --provider-receive /manager/informer/signal --informer-send /manager/provider/signal --informer-receive /manager/provider/payload --cluster cluster1
-# hub cluster
-./bin/manager --broker 127.0.0.1:1883 --client-id managerId --provider-send /manager/provider/payload --provider-receive manager/provider/signal --informer-send /manager/informer/signal --informer-receive /manager/informer/payload
-```
+- start the agent and manager
+  ```bash
+  make build
+  # cluster1 cluster
+  ./bin/agent --broker 127.0.0.1:1883 --client-id agentId --provider-send /manager/informer/payload --provider-receive /manager/informer/signal --informer-send /manager/provider/signal --informer-receive /manager/provider/payload --cluster cluster1
+  # hub cluster
+  ./bin/manager --broker 127.0.0.1:1883 --client-id managerId --provider-send /manager/provider/payload --provider-receive /manager/provider/signal --informer-send /manager/informer/signal --informer-receive /manager/informer/payload
+  ```
+- Deploy resources under the namespace `cluster1` of the `hub`
+  ```bash
+  oc apply -f ./sample/nginx-deployment.yaml
+  ```
+  > Note: It will recreate resource after deleting it from cluster(Resync).
+
+- Need to be consolidated
+  ![enhance](./docs/images/enhance.png)
 
 #### Cons
 - How to define the Cluster CRD and manage it's lifecycle? 

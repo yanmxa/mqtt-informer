@@ -106,7 +106,7 @@ func (e *MessageListWatcher) Watch(options metav1.ListOptions) (watch.Interface,
 	transportMessage := watchMessage.ToMessage()
 
 	e.transporter.Send(e.sendTopic, transportMessage)
-	klog.Infof("request to watch message(%s): %s", transportMessage.ID, transportMessage.Type)
+	klog.Infof("request to watch message(%s) to %s", transportMessage.Type, e.sendTopic)
 
 	e.watcher = newMessageWatcher(watchMessage.uid, e.watcherStop, e.gvr, 10)
 	return e.watcher, nil
@@ -117,7 +117,7 @@ func (e *MessageListWatcher) watcherStop() {
 		metav1.ListOptions{})
 	transportMessage := stopWatchMessage.ToMessage()
 
-	klog.Infof("request to stop watch message(%s): %s", transportMessage.ID, transportMessage.Type)
+	klog.Infof("request to stop watch message(%s): %s", transportMessage.Type, e.sendTopic)
 	err := e.transporter.Send(e.sendTopic, transportMessage)
 	if err != nil {
 		klog.Error(err)
@@ -128,7 +128,7 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 	listMessageRequest := newListWatchMsg("informer", apis.MessageListType(e.gvr), e.namespace, e.gvr, options)
 	transportMessage := listMessageRequest.ToMessage()
 
-	klog.Infof("informer lists message(%s): %s", transportMessage.ID, transportMessage.Type)
+	klog.Infof("request to list message(%s) to %s", transportMessage.Type, e.sendTopic)
 	err := e.transporter.Send(e.sendTopic, transportMessage)
 	if err != nil {
 		return nil, err
@@ -162,7 +162,7 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 			if listRunning {
 				continue
 			}
-			klog.Infof("request to re-list message(%s): %s", transportMessage.ID, transportMessage.Type)
+			klog.Infof("request to relist message(%s) to %s", transportMessage.Type, e.sendTopic)
 			err := e.transporter.Send(e.sendTopic, transportMessage)
 			if err != nil {
 				return nil, err

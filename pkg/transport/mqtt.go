@@ -87,7 +87,7 @@ func (t *mqttTransport) Send(topic string, msg apis.TransportMessage) error {
 // start a goroutine to receive message from subscribed topic
 func (t *mqttTransport) Receive(topic string) (Receiver, error) {
 	if t.receivers[topic] != nil {
-		klog.Info("Receiver(%s) already existed!", topic)
+		klog.Info("provider(%s) already existed!", topic)
 		return t.receivers[topic], nil
 	}
 

@@ -39,6 +39,7 @@ func NewDefaultProvider(clusterName string, dynamicClient *dynamic.DynamicClient
 }
 
 func (d *defaultProvider) Run(ctx context.Context) error {
+	klog.Infof("provider subscribe topic: %s", d.receiveTopic)
 	receiver, err := d.transporter.Receive(d.receiveTopic)
 	if err != nil {
 		return err
@@ -95,7 +96,7 @@ func (d *defaultProvider) process(ctx context.Context, transportMsg apis.Transpo
 }
 
 func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, namespace string, gvr schema.GroupVersionResource, options metav1.ListOptions) {
-	klog.Infof("starting watcher(%s) with a new goroutine goroutine!", id)
+	klog.Infof("provider start a watcher(%s: %s) to %s", apis.MessageWatchResponseType(gvr), namespace, d.sendTopic)
 	w, err := d.lw.Watch(namespace, gvr, options)
 	if err != nil {
 		klog.Error(err)
@@ -109,7 +110,8 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 		select {
 		case e, ok := <-w.ResultChan():
 			if !ok {
-				klog.Infof("watcher(%s) chan is closed, restart a new watcher!", id)
+				klog.Infof("watcher(%s) is closed, restart a new watcher to %s!", apis.MessageWatchResponseType(gvr),
+					d.sendTopic)
 				w, err = d.lw.Watch(namespace, gvr, options)
 				if err != nil {
 					klog.Errorf("failed to restart watcher(%s) with error: %v", id, err)
@@ -126,6 +128,9 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 				d.adapter(obj, d.clusterName)
 			}
 
+			// pay, _ := json.MarshalIndent(obj, "", "  ")
+			// klog.Infof("watch new obj: %s", string(pay))
+
 			response := &apis.WatchResponseMessage{
 				Type:   e.Type,
 				Object: obj,
@@ -141,7 +146,7 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 			msg.Source = d.clusterName
 			msg.Payload = res
 
-			klog.Infof("provider send watch message(%s): %s", msg.ID, msg.Type)
+			klog.Infof("provider %s - %s: %s/%s", msg.Type, e.Type, obj.GetNamespace(), obj.GetName())
 			err = d.transporter.Send(d.sendTopic, msg)
 			if err != nil {
 				klog.Warning("failed to send watch object with error: %v", err)
@@ -183,7 +188,7 @@ func (d *defaultProvider) sendListResponses(ctx context.Context, id types.UID, n
 	msg.Source = d.clusterName
 	msg.Payload = res
 
-	klog.Infof("provider send list response message(%s): %s", msg.ID, msg.Type)
+	klog.Infof("provider send list response message(%s) to %s", msg.Type, d.sendTopic)
 	err = d.transporter.Send(d.sendTopic, msg)
 
 	if err != nil {

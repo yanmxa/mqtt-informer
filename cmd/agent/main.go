@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,6 +27,7 @@ import (
 	"github.com/yanmxa/transport-informer/pkg/provider"
 	"github.com/yanmxa/transport-informer/pkg/transport"
 	"github.com/yanmxa/transport-informer/pkg/utils"
+	appsv1 "k8s.io/api/apps/v1"
 )
 
 func init() {
@@ -52,6 +53,17 @@ func main() {
 		opt.ProviderSendTopic, opt.ProviderReceiveTopic,
 		func(obj metav1.Object, clusterName string) {
 			obj.SetNamespace(clusterName)
+
+			byteObj, err := json.Marshal(obj)
+			if err != nil {
+				klog.Errorf("marshal object failed: %v", err)
+			}
+			labels := obj.GetLabels()
+			if labels == nil {
+				labels = map[string]string{}
+			}
+			labels["object"] = string(byteObj)
+			obj.SetLabels(labels)
 		})
 	go p.Run(ctx)
 
@@ -67,15 +79,12 @@ func main() {
 	// 1. informer to list/watch response from transporter, and then apply resource to local cluster
 	// 2. only care about the resource with cluster target namespace
 	informerFactory := informers.NewSharedMessageInformerFactory(ctx, transporter, time.Minute*5,
-		opt.InformerSendTopic, opt.InformerReceiveTopic, opt.ClusterName, func(options *metav1.ListOptions) {
-			options.LabelSelector = fmt.Sprintf("%s=", utils.ClusterTargetNamespaceLabelKey)
-		})
+		opt.InformerSendTopic, opt.InformerReceiveTopic, opt.ClusterName, nil)
 
 	deployInformer := informerFactory.ForResource(gvr)
 	addInformerHandler(ctx, deployInformer.Informer(), restConfig, gvr)
 	informerFactory.Start()
 
-	klog.Info("start informer")
 	<-ctx.Done()
 	time.Sleep(2 * time.Second) // wait for the informer send stop signal to transporter
 	transporter.Stop()
@@ -96,44 +105,77 @@ func addInformerHandler(ctx context.Context, informer cache.SharedIndexInformer,
 			accessor, _ := meta.Accessor(obj)
 			validateNamespace(kubeClient, accessor.GetNamespace())
 
-			accessor.SetResourceVersion("")
-			accessor.SetManagedFields(nil)
-			accessor.SetGeneration(0)
-			unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(accessor)
+			namespace := accessor.GetNamespace()
+			lastAppliedConfigJSON := accessor.GetAnnotations()["kubectl.kubernetes.io/last-applied-configuration"]
+			deployment := &appsv1.Deployment{}
+			err = json.Unmarshal([]byte(lastAppliedConfigJSON), deployment)
 			if err != nil {
-				klog.Error(err)
-				return
+				panic(err.Error())
 			}
-			_, err = dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Create(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.CreateOptions{})
+
+			// pay, _ := json.MarshalIndent(deployment, "", "  ")
+			// klog.Infof("create deployment: %s", string(pay))
+			deployment.SetResourceVersion("")
+			deployment.SetUID("")
+			deployment.SetGeneration(0)
+			deployment.SetManagedFields(nil)
+			deployment.SetNamespace(namespace)
+			_, err = kubeClient.AppsV1().Deployments(accessor.GetNamespace()).Create(context.Background(), deployment, metav1.CreateOptions{})
+			// _, err = dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Create(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.CreateOptions{})
 			if errors.IsAlreadyExists(err) {
 				klog.Infof("already exists %s/%s", accessor.GetNamespace(), accessor.GetName())
+				return
+			} else if err != nil {
+				klog.Errorf("create %s/%s failed: %v", accessor.GetNamespace(), accessor.GetName(), err)
 				return
 			}
 
 			klog.Infof("Added %s/%s", accessor.GetNamespace(), accessor.GetName())
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldAccessor, _ := meta.Accessor(oldObj)
+			// oldAccessor, _ := meta.Accessor(oldObj)
 			newAccessor, _ := meta.Accessor(newObj)
-			oldUnstructuredObj, err := dynamicClient.Resource(gvr).Namespace(oldAccessor.GetNamespace()).Get(ctx, oldAccessor.GetName(), metav1.GetOptions{})
-			if err != nil {
-				klog.Error(err)
-				return
-			}
-			newUnstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(newAccessor)
-			if err != nil {
-				klog.Error(err)
-				return
-			}
-			newUnstructuredObj["metadata"].(map[string]interface{})["resourceVersion"] = oldUnstructuredObj.GetResourceVersion()
-			newUnstructuredObj["metadata"].(map[string]interface{})["uid"] = oldUnstructuredObj.GetUID()
 
-			_, err = dynamicClient.Resource(gvr).Namespace(newAccessor.GetNamespace()).Update(ctx, &unstructured.Unstructured{Object: newUnstructuredObj}, metav1.UpdateOptions{})
+			objJSON := newAccessor.GetLabels()["object"]
+			deployment := &appsv1.Deployment{}
+			err = json.Unmarshal([]byte(objJSON), deployment)
+			if err != nil {
+				panic(err.Error())
+			}
+
+			oldUnstructured, err := dynamicClient.Resource(gvr).Namespace(newAccessor.GetNamespace()).Get(ctx, newAccessor.GetName(), metav1.GetOptions{})
+			if errors.IsNotFound(err) {
+				createDeploy := &appsv1.Deployment{}
+				createDeploy.SetName(deployment.GetName())
+				createDeploy.SetNamespace(deployment.GetNamespace())
+				createDeploy.SetLabels(deployment.GetLabels())
+				createDeploy.SetAnnotations(deployment.GetAnnotations())
+				createDeploy.Spec = deployment.Spec
+				_, err := kubeClient.AppsV1().Deployments(deployment.GetNamespace()).Create(ctx, createDeploy, metav1.CreateOptions{})
+				if err != nil {
+					klog.Error(err)
+				}
+				klog.Infof("create %s/%s", newAccessor.GetNamespace(), newAccessor.GetName())
+				return
+			} else if err != nil {
+				klog.Infof("get %s/%s failed: %v", newAccessor.GetNamespace(), newAccessor.GetName(), err)
+				return
+			}
+
+			oldUnstructuredObj := oldUnstructured.Object
+
+			oldUnstructuredObj["labels"] = deployment.Labels
+			oldUnstructuredObj["annotations"] = deployment.Annotations
+			spec := oldUnstructuredObj["spec"].(map[string]interface{})
+			spec["replicas"] = *deployment.Spec.Replicas
+			oldUnstructuredObj["spec"] = spec
+
+			_, err = dynamicClient.Resource(gvr).Namespace(newAccessor.GetNamespace()).Update(ctx, &unstructured.Unstructured{Object: oldUnstructuredObj}, metav1.UpdateOptions{})
 			if err != nil {
 				klog.Error(err)
 				return
 			}
-			klog.Infof("Updated from %s/%s to %s/%s", oldAccessor.GetNamespace(), oldAccessor.GetName(), newAccessor.GetNamespace(), newAccessor.GetName())
+			klog.Infof("Updated %s/%s", newAccessor.GetNamespace(), newAccessor.GetName())
 		},
 		DeleteFunc: func(obj interface{}) {
 			accessor, _ := meta.Accessor(obj)
@@ -157,4 +199,14 @@ func validateNamespace(kubeClient *kubernetes.Clientset, namespace string) error
 		}, metav1.CreateOptions{})
 	}
 	return err
+}
+
+func convertUnstructuredToDeployment(unstructuredObj *unstructured.Unstructured) (*appsv1.Deployment, error) {
+	deploymentObj := &appsv1.Deployment{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, deploymentObj)
+	if err != nil {
+		return nil, err
+	}
+
+	return deploymentObj, nil
 }

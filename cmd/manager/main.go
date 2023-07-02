@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -21,7 +22,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
-	informers "github.com/yanmxa/transport-informer/pkg/informer"
+	"github.com/yanmxa/transport-informer/pkg/informer"
 	"github.com/yanmxa/transport-informer/pkg/option"
 	"github.com/yanmxa/transport-informer/pkg/provider"
 	"github.com/yanmxa/transport-informer/pkg/transport"
@@ -55,15 +56,24 @@ func main() {
 				labels = map[string]string{}
 			}
 			targetNamespace := labels[utils.ClusterTargetNamespaceLabelKey]
+			if targetNamespace == "" {
+				klog.Info("target namespace is empty, use cluster name as target namespace")
+				targetNamespace = clusterName
+			}
 			obj.SetNamespace(targetNamespace)
+
+			annotations := obj.GetAnnotations()
+			delete(annotations, fmt.Sprintf("cluster.available.replicas/%s", targetNamespace))
+
+			byteObj, err := json.Marshal(obj)
+			if err != nil {
+				klog.Errorf("marshal object failed: %v", err)
+			}
+			labels["object"] = string(byteObj)
+			obj.SetLabels(labels)
+			obj.SetAnnotations(annotations)
 		})
 	go p.Run(ctx)
-
-	gvr := schema.GroupVersionResource{
-		Group:    "apps",
-		Version:  "v1",
-		Resource: "deployments",
-	}
 
 	// only cluster informer is ready to go
 	// todo: if a cluster is registered, then how to let the informer know the cluster is ready? and how to let list/watch the resource from the cluster?
@@ -72,14 +82,19 @@ func main() {
 	// informer to list/watch response from transporter, and then apply resource to local cluster
 	// only care about the resource with cluster target namespace:
 	//      the namespace and tweakListOptionsFunc will be propagate to the provider
-	informerFactory := informers.NewSharedMessageInformerFactory(ctx, transporter, time.Minute*5,
+
+	gvr := schema.GroupVersionResource{
+		Group:    "apps",
+		Version:  "v1",
+		Resource: "deployments",
+	}
+	informerFactory := informer.NewSharedMessageInformerFactory(ctx, transporter, time.Minute*5,
 		opt.InformerSendTopic, opt.InformerReceiveTopic, metav1.NamespaceAll, func(options *metav1.ListOptions) {
-			options.LabelSelector = fmt.Sprintf("%s=", utils.ClusterTargetNamespaceLabelKey)
+			options.LabelSelector = fmt.Sprintf("%s=", utils.TransportResourceLabelKey)
 		})
 
 	deployInformer := informerFactory.ForResource(gvr)
 	addInformerHandler(ctx, deployInformer.Informer(), restConfig, gvr)
-
 	informerFactory.Start()
 
 	<-ctx.Done()
@@ -88,57 +103,70 @@ func main() {
 }
 
 func addInformerHandler(ctx context.Context, informer cache.SharedIndexInformer, restConfig *rest.Config, gvr schema.GroupVersionResource) {
-	// dynamicClient, err := dynamic.NewForConfig(restConfig)
+	dynamicClient, err := dynamic.NewForConfig(restConfig)
+	if err != nil {
+		panic(err.Error())
+	}
+	// kubeClient, err := kubernetes.NewForConfig(restConfig)
 	// if err != nil {
 	// 	panic(err.Error())
 	// }
-	// sharedIndexInformer := informer.Informer()
+
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			accessor, _ := meta.Accessor(obj)
 
-			// unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(accessor)
-			// if err != nil {
-			// 	klog.Error(err)
-			// 	return
-			// }
+			objJSON := accessor.GetLabels()["object"]
+			deployment := &appsv1.Deployment{}
+			err := json.Unmarshal([]byte(objJSON), deployment)
+			if err != nil {
+				klog.Error(err)
+			}
+			replicas := deployment.Status.AvailableReplicas
 
-			// _, err = dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Create(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.CreateOptions{})
-			// if errors.IsAlreadyExists(err) {
-			// 	klog.Infof("already exists %s/%s", accessor.GetNamespace(), accessor.GetName())
-			// 	return
-			// }
+			oldUnstructured, err := dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Get(ctx, accessor.GetName(), metav1.GetOptions{})
+			if err != nil {
+				klog.Infof("get %s/%s failed: %v", accessor.GetNamespace(), accessor.GetName(), err)
+				return
+			}
+			annotations := oldUnstructured.GetAnnotations()
+			annotations[fmt.Sprintf("cluster.available.replicas/%s", accessor.GetNamespace())] = fmt.Sprintf("%d", replicas)
+			oldUnstructured.SetAnnotations(annotations)
 
-			klog.Infof("Added %s/%s to hub cluster: ", accessor.GetNamespace(), accessor.GetName())
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldAccessor, _ := meta.Accessor(oldObj)
-			newAccessor, _ := meta.Accessor(newObj)
-
-			accessor, err := json.Marshal(newAccessor)
+			_, err = dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Update(ctx, oldUnstructured, metav1.UpdateOptions{})
 			if err != nil {
 				klog.Error(err)
 				return
 			}
-			// oldUnstructuredObj, err := dynamicClient.Resource(gvr).Namespace(oldAccessor.GetNamespace()).Get(ctx, oldAccessor.GetName(), metav1.GetOptions{})
-			// if err != nil {
-			// 	klog.Error(err)
-			// 	return
-			// }
-			// newUnstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(newAccessor)
-			// if err != nil {
-			// 	klog.Error(err)
-			// 	return
-			// }
-			// newUnstructuredObj["metadata"].(map[string]interface{})["resourceVersion"] = oldUnstructuredObj.GetResourceVersion()
-			// newUnstructuredObj["metadata"].(map[string]interface{})["uid"] = oldUnstructuredObj.GetUID()
+			klog.Infof("Added %s/%s: ", accessor.GetNamespace(), accessor.GetName())
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			// oldAccessor, _ := meta.Accessor(oldObj)
+			newAccessor, _ := meta.Accessor(newObj)
 
-			// _, err = dynamicClient.Resource(gvr).Namespace(newAccessor.GetNamespace()).Update(ctx, &unstructured.Unstructured{Object: newUnstructuredObj}, metav1.UpdateOptions{})
-			// if err != nil {
-			// 	klog.Error(err)
-			// 	return
-			// }
-			klog.Infof("Updated from %s/%s to %s/%s with detail %s", oldAccessor.GetNamespace(), oldAccessor.GetName(), newAccessor.GetNamespace(), newAccessor.GetName(), string(accessor))
+			accessor := newAccessor
+			objJSON := accessor.GetLabels()["object"]
+			deployment := &appsv1.Deployment{}
+			err := json.Unmarshal([]byte(objJSON), deployment)
+			if err != nil {
+				klog.Error(err)
+			}
+			replicas := deployment.Status.AvailableReplicas
+
+			oldUnstructured, err := dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Get(ctx, accessor.GetName(), metav1.GetOptions{})
+			if err != nil {
+				klog.Infof("get %s/%s failed: %v", accessor.GetNamespace(), accessor.GetName(), err)
+				return
+			}
+			annotations := oldUnstructured.GetAnnotations()
+			annotations[fmt.Sprintf("cluster.available.replicas/%s", accessor.GetNamespace())] = fmt.Sprintf("%d", replicas)
+			oldUnstructured.SetAnnotations(annotations)
+
+			_, err = dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Update(ctx, oldUnstructured, metav1.UpdateOptions{})
+			if err != nil {
+				klog.Error(err)
+			}
+			klog.Infof("Updated %s/%s ", accessor.GetNamespace(), accessor.GetName())
 		},
 		DeleteFunc: func(obj interface{}) {
 			accessor, _ := meta.Accessor(obj)
@@ -147,6 +175,20 @@ func addInformerHandler(ctx context.Context, informer cache.SharedIndexInformer,
 			// 	klog.Error(err)
 			// 	return
 			// }
+			oldUnstructured, err := dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Get(ctx, accessor.GetName(), metav1.GetOptions{})
+			if err != nil {
+				klog.Infof("get %s/%s failed: %v", accessor.GetNamespace(), accessor.GetName(), err)
+				return
+			}
+			annotations := oldUnstructured.GetAnnotations()
+			annotations[fmt.Sprintf("cluster.available.replicas/%s", accessor.GetNamespace())] = fmt.Sprintf("%d", 0)
+			oldUnstructured.SetAnnotations(annotations)
+
+			_, err = dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Update(ctx, oldUnstructured, metav1.UpdateOptions{})
+			if err != nil {
+				klog.Error(err)
+				return
+			}
 			klog.Infof("Deleted %s/%s", accessor.GetNamespace(), accessor.GetName())
 		},
 	})
