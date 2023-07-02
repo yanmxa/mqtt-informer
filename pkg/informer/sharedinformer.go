@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/yanmxa/transport-informer/pkg/transport"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -38,8 +37,8 @@ type messageSharedInformerFactory struct {
 }
 
 // NewSharedMessageInformerFactory constructs a new instance of metadataSharedInformerFactory for all namespaces.
-func NewSharedMessageInformerFactory(ctx context.Context, t transport.Transport, defaultResync time.Duration, send, receive string) SharedInformerFactory {
-	return NewFilteredSharedInformerFactory(ctx, t, defaultResync, metav1.NamespaceAll, nil, send, receive)
+func NewSharedMessageInformerFactory(ctx context.Context, t transport.Transport, defaultResync time.Duration, send, receive string, namespace string, tweakOptions TweakListOptionsFunc) SharedInformerFactory {
+	return NewFilteredSharedInformerFactory(ctx, t, defaultResync, namespace, tweakOptions, send, receive)
 }
 
 // NewFilteredSharedInformerFactory constructs a new instance of metadataSharedInformerFactory.

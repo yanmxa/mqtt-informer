@@ -21,7 +21,7 @@ type messageInformer struct {
 
 // NewFilteredMetadataInformer constructs a new informer for a metadata type.
 func NewFilteredMetadataInformer(ctx context.Context, t transport.Transport, gvr schema.GroupVersionResource,
-	namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions TweakListOptionsFunc,
+	namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakOptions TweakListOptionsFunc,
 	sendTopic, receiveTopic string,
 ) informers.GenericInformer {
 	lw := NewMessageListWatcher(ctx, t, namespace, gvr, sendTopic, receiveTopic)
@@ -31,14 +31,14 @@ func NewFilteredMetadataInformer(ctx context.Context, t transport.Transport, gvr
 		informer: cache.NewSharedIndexInformer(
 			&cache.ListWatch{
 				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					if tweakListOptions != nil {
-						tweakListOptions(&options)
+					if tweakOptions != nil {
+						tweakOptions(&options)
 					}
 					return lw.List(options)
 				},
 				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					if tweakListOptions != nil {
-						tweakListOptions(&options)
+					if tweakOptions != nil {
+						tweakOptions(&options)
 					}
 					return lw.Watch(options)
 				},

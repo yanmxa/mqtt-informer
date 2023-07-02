@@ -6,7 +6,6 @@ import (
 
 	"github.com/yanmxa/transport-informer/pkg/apis"
 	transport "github.com/yanmxa/transport-informer/pkg/transport"
-	"github.com/yanmxa/transport-informer/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -16,15 +15,17 @@ import (
 )
 
 type defaultProvider struct {
-	clusterName  string
-	lw           ListWatcher // used to list and watch local resource
-	transporter  transport.Transport
-	watchStop    map[types.UID]context.CancelFunc
+	clusterName string
+	lw          ListWatcher // used to list and watch local resource
+	transporter transport.Transport
+	watchStop   map[types.UID]context.CancelFunc
+
 	sendTopic    string
 	receiveTopic string
+	adapter      func(obj metav1.Object, clusterName string)
 }
 
-func NewDefaultProvider(clusterName string, dynamicClient *dynamic.DynamicClient, t transport.Transport, send, receive string) Provider {
+func NewDefaultProvider(clusterName string, dynamicClient *dynamic.DynamicClient, t transport.Transport, send, receive string, adapter func(obj metav1.Object, clusterName string)) Provider {
 	return &defaultProvider{
 		clusterName:  clusterName,
 		lw:           NewDynamicListWatcher(dynamicClient),
@@ -32,6 +33,7 @@ func NewDefaultProvider(clusterName string, dynamicClient *dynamic.DynamicClient
 		watchStop:    map[types.UID]context.CancelFunc{},
 		sendTopic:    send,
 		receiveTopic: receive,
+		adapter:      adapter,
 	}
 }
 
@@ -90,6 +92,7 @@ func (d *defaultProvider) process(ctx context.Context, transportMsg apis.Transpo
 }
 
 func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, namespace string, gvr schema.GroupVersionResource, options metav1.ListOptions) {
+	klog.Infof("starting watch message(%s) with a new goroutine goroutine!", id)
 	w, err := d.lw.Watch(namespace, gvr, options)
 	if err != nil {
 		klog.Error(err)
@@ -103,8 +106,8 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 		select {
 		case e, ok := <-w.ResultChan():
 			if !ok {
-				klog.Warning("failed to watch the result", "event", e)
-				continue
+				klog.Error("watch message(%s) chan is closed, stop the goroutine!", id)
+				return
 			}
 
 			obj, ok := e.Object.(*unstructured.Unstructured)
@@ -112,7 +115,9 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 				klog.Warning("failed to convert object to unstructured")
 				continue
 			}
-			utils.ConvertToGlobalObj(obj, d.clusterName)
+			if d.adapter != nil {
+				d.adapter(obj, d.clusterName)
+			}
 
 			response := &apis.WatchResponseMessage{
 				Type:   e.Type,
@@ -149,8 +154,10 @@ func (d *defaultProvider) sendListResponses(ctx context.Context, id types.UID, n
 		return err
 	}
 
-	for _, obj := range objs.Items {
-		utils.ConvertToGlobalObj(&obj, d.clusterName)
+	if d.adapter != nil {
+		for _, obj := range objs.Items {
+			d.adapter(&obj, d.clusterName)
+		}
 	}
 
 	response := &apis.ListResponseMessage{

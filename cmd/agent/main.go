@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,12 +16,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
 	informers "github.com/yanmxa/transport-informer/pkg/informer"
 	"github.com/yanmxa/transport-informer/pkg/option"
+	"github.com/yanmxa/transport-informer/pkg/provider"
 	"github.com/yanmxa/transport-informer/pkg/transport"
 	"github.com/yanmxa/transport-informer/pkg/utils"
 )
@@ -36,21 +37,40 @@ func main() {
 	defer cancel()
 
 	opt := option.ParseOptionFromFlag()
-	transporter := transport.NewMqttTransport(ctx, opt)
-
-	// only informer the resource with label "mqtt-resource"
-	informerFactory := informers.NewSharedMessageInformerFactory(ctx, transporter, time.Minute*5,
-		opt.InformerSendTopic, opt.InformerReceiveTopic, metav1.NamespaceAll, func(options *metav1.ListOptions) {
-			options.LabelSelector = fmt.Sprintf("%s=", "mqtt-resource")
-		})
-
-	gvr := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
-	secretInformer := informerFactory.ForResource(gvr)
-
 	restConfig, err := clientcmd.BuildConfigFromFlags("", opt.KubeConfig)
 	if err != nil {
 		panic(err.Error())
 	}
+
+	// transport for both informer and provider
+	transporter := transport.NewMqttTransport(ctx, opt)
+
+	// informer to list/watch response from transporter, and then apply resource to local cluster
+	informerFactory := informers.NewSharedMessageInformerFactory(ctx, transporter, time.Minute*5,
+		opt.InformerSendTopic, opt.InformerReceiveTopic, opt.ClusterName, func(options *metav1.ListOptions) {
+			// options.LabelSelector = fmt.Sprintf("%s=", "mqtt-resource")
+		})
+	gvr := schema.GroupVersionResource{
+		Group:    "apps",
+		Version:  "v1",
+		Resource: "deployments",
+	}
+	deployInformer := informerFactory.ForResource(gvr)
+	addInformerHandler(ctx, deployInformer.Informer(), restConfig, gvr)
+	informerFactory.Start()
+
+	// start a provider to list/watch local resource and send to transporter
+	dynamicClient := dynamic.NewForConfigOrDie(restConfig)
+	p := provider.NewDefaultProvider(opt.ClusterName, dynamicClient, transporter,
+		opt.ProviderSendTopic, opt.ProviderReceiveTopic, utils.ConvertToGlobalObj)
+	p.Run(ctx)
+
+	<-ctx.Done()
+	time.Sleep(2 * time.Second) // wait for the informer send stop signal to transporter
+	transporter.Stop()
+}
+
+func addInformerHandler(ctx context.Context, informer cache.SharedIndexInformer, restConfig *rest.Config, gvr schema.GroupVersionResource) {
 	dynamicClient, err := dynamic.NewForConfig(restConfig)
 	if err != nil {
 		panic(err.Error())
@@ -59,14 +79,10 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-
 	// sharedIndexInformer := informer.Informer()
-	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			accessor, _ := meta.Accessor(obj)
-			// if _, ok := accessor.GetLabels()["mqtt-resource"]; !ok {
-			// 	return
-			// }
 			validateNamespace(kubeClient, accessor.GetNamespace())
 
 			accessor.SetResourceVersion("")
@@ -79,7 +95,7 @@ func main() {
 			}
 			_, err = dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Create(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.CreateOptions{})
 			if errors.IsAlreadyExists(err) {
-				klog.Infof("Already exists %s/%s", accessor.GetNamespace(), accessor.GetName())
+				klog.Infof("already exists %s/%s", accessor.GetNamespace(), accessor.GetName())
 				return
 			}
 
@@ -88,9 +104,6 @@ func main() {
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldAccessor, _ := meta.Accessor(oldObj)
 			newAccessor, _ := meta.Accessor(newObj)
-			// if _, ok := newAccessor.GetLabels()["mqtt-resource"]; !ok {
-			// 	return
-			// }
 			oldUnstructuredObj, err := dynamicClient.Resource(gvr).Namespace(oldAccessor.GetNamespace()).Get(ctx, oldAccessor.GetName(), metav1.GetOptions{})
 			if err != nil {
 				klog.Error(err)
@@ -113,9 +126,6 @@ func main() {
 		},
 		DeleteFunc: func(obj interface{}) {
 			accessor, _ := meta.Accessor(obj)
-			// if _, ok := accessor.GetLabels()["mqtt-resource"]; !ok {
-			// 	return
-			// }
 			err := dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Delete(ctx, accessor.GetName(), metav1.DeleteOptions{})
 			if err != nil {
 				klog.Error(err)
@@ -124,11 +134,6 @@ func main() {
 			klog.Infof("Deleted %s/%s", accessor.GetNamespace(), accessor.GetName())
 		},
 	})
-
-	informerFactory.Start()
-	<-ctx.Done()
-	time.Sleep(2 * time.Second) // wait for the informer send stop signal to transporter
-	transporter.Stop()
 }
 
 func validateNamespace(kubeClient *kubernetes.Clientset, namespace string) error {
@@ -140,6 +145,5 @@ func validateNamespace(kubeClient *kubernetes.Clientset, namespace string) error
 			},
 		}, metav1.CreateOptions{})
 	}
-
 	return err
 }

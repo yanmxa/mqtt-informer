@@ -35,7 +35,7 @@ func main() {
 	transporter := transport.NewMqttTransport(ctx, opt)
 
 	p := provider.NewDefaultProvider(opt.ClusterName, dynamicClient, transporter,
-		opt.ProviderSendTopic, opt.ProviderReceiveTopic)
+		opt.ProviderSendTopic, opt.ProviderReceiveTopic, utils.ConvertToGlobalObj)
 
 	p.Run(ctx)
 	transporter.Stop()

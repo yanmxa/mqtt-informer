@@ -2,7 +2,7 @@ package utils
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-func ConvertToGlobalObj(obj metav1.Object, clusterName string) metav1.Object {
+func ConvertToGlobalObj(obj metav1.Object, clusterName string) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
 	if namespace == "" {
@@ -11,5 +11,4 @@ func ConvertToGlobalObj(obj metav1.Object, clusterName string) metav1.Object {
 		obj.SetName(namespace + "." + name)
 		obj.SetNamespace(clusterName)
 	}
-	return obj
 }

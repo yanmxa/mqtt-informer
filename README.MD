@@ -29,9 +29,14 @@ How to make transport respond to Informer's List/Watch like ETCD? Thanks to the 
 
 By introducing a custom Transport, we also bring an additional layer that is responsible for communication between the client and the data store. While we can configure the transport to handle failures or errors to decrease the risk of losing data, we still cannot guarantee that the transport will be as reliable as ETCD. 
 
-In order to improve the robustness of reconciliation in Informer, the resync mechanism is used to synchronize the full cache to the delta queue. This make the reconciliation process to handle failures or discrepancies gracefully. This also brings us a way to enhance the reliability of transport, that is, to add a mechanism to resync full data on transport. There are two ways to achieve it:
-- Informer lists all the resources from transport Periodically
-- The provider periodically sends all objects of a GVR from transport to Informer's watch channel, and Informer determines whether to process them based on a message version.
+#### Take advantage of the informer resync mechanism
+In order to improve the robustness of reconciliation in Informer, the resync mechanism is used to synchronize the full cache to the delta queue. This make the reconciliation process to handle failures or discrepancies gracefully. This also brings us a way to enhance the reliability of transport.
+![resync](./docs/images/resync.png)
+
+~~ that is, to add a mechanism to resync full data on transport. There are two ways to achieve it: ~~
+~~- Informer lists all the resources from transport Periodically ~~
+~~ - The provider periodically sends all objects of a GVR from transport to Informer's watch channel, and Informer determines whether to process them based on a message version ~~
+
 #### MQTT 
 - Add message [acknowledgment mechanism](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/)
     - QoS 1: A balance between reliability and efficiency, guaranteeing that the message reaches the receiver at least once while allowing for potential duplicates to be handled appropriately.
