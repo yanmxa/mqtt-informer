@@ -33,9 +33,9 @@ By introducing a custom Transport, we also bring an additional layer that is res
 In order to improve the robustness of reconciliation in Informer, the resync mechanism is used to synchronize the full cache to the delta queue. This make the reconciliation process to handle failures or discrepancies gracefully. This also brings us a way to enhance the reliability of transport.
 ![resync](./docs/images/resync.png)
 
-~~ that is, to add a mechanism to resync full data on transport. There are two ways to achieve it: ~~
-~~- Informer lists all the resources from transport Periodically ~~
-~~ - The provider periodically sends all objects of a GVR from transport to Informer's watch channel, and Informer determines whether to process them based on a message version ~~
+~~ that is, to add a mechanism to resync full data on transport. There are two ways to achieve it: 
+- Informer lists all the resources from transport Periodically 
+- The provider periodically sends all objects of a GVR from transport to Informer's watch channel, and Informer determines whether to process them based on a message version ~~
 
 #### MQTT 
 - Add message [acknowledgment mechanism](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/)

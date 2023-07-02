@@ -106,8 +106,12 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 		select {
 		case e, ok := <-w.ResultChan():
 			if !ok {
-				klog.Error("watch message(%s) chan is closed, stop the goroutine!", id)
-				return
+				klog.Info("watch message(%s) chan is closed, restart a new watch chan!", id)
+				w, err = d.lw.Watch(namespace, gvr, options)
+				if err != nil {
+					klog.Errorf("failed to restart watch message(%s) with error: %v", id, err)
+				}
+				continue
 			}
 
 			obj, ok := e.Object.(*unstructured.Unstructured)
