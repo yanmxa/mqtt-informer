@@ -90,11 +90,15 @@ make build
 ![bidirectional-informer](./docs/images/bidirectional-informer.png)
 
 ### Demo
+| Define all the topic based on hub
 ```bash
-./bin/agent --broker tcp://127.0.0.1:1883 --client-id sourceId --signal-topic /signal --payload-topic /payload --cluster cluster1
-./bin/hub --broker tcp://127.0.0.1:1883 --client-id controlplaneId --signal-topic /signal --payload-topic /payload
+make build
+# cluster1 cluster
+./bin/agent --broker 127.0.0.1:1883 --client-id agentId --provider-send /manager/informer/payload --provider-receive /manager/informer/signal --informer-send /manager/provider/signal --informer-receive /manager/provider/payload --cluster cluster1
+# hub cluster
+./bin/manager --broker 127.0.0.1:1883 --client-id managerId --provider-send /manager/provider/payload --provider-receive manager/provider/signal --informer-send /manager/informer/signal --informer-receive /manager/informer/payload
 ```
 
 #### Cons
-- How to define the Cluster CRD and manage it's lifecycle
+- How to define the Cluster CRD and manage it's lifecycle? 
 - How to handle workload scheduling, like the Placement in OCM?

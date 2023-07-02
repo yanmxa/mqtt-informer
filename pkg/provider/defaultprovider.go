@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/yanmxa/transport-informer/pkg/apis"
 	transport "github.com/yanmxa/transport-informer/pkg/transport"
@@ -70,14 +71,14 @@ func (d *defaultProvider) process(ctx context.Context, transportMsg apis.Transpo
 	req := &apis.RequestMessage{}
 	err = json.Unmarshal(transportMsg.Payload, &req)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal request message with error: %v", err)
 	}
 
 	switch mode {
 	case string(apis.ModeList):
 		err := d.sendListResponses(ctx, types.UID(transportMsg.ID), req.Namespace, gvr, req.Options)
 		if err != nil {
-			klog.Error(err)
+			klog.Errorf("failed to send list response with error: %v", err)
 		}
 	case string(apis.ModeWatch):
 		go d.watchResponse(ctx, types.UID(transportMsg.ID), req.Namespace, gvr, req.Options)
@@ -87,12 +88,14 @@ func (d *defaultProvider) process(ctx context.Context, transportMsg apis.Transpo
 			cancelFunc()
 			delete(d.watchStop, types.UID(transportMsg.ID))
 		}
+	default:
+		klog.Warningf("unknown message type: %s", transportMsg.Type)
 	}
 	return nil
 }
 
 func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, namespace string, gvr schema.GroupVersionResource, options metav1.ListOptions) {
-	klog.Infof("starting watch message(%s) with a new goroutine goroutine!", id)
+	klog.Infof("starting watcher(%s) with a new goroutine goroutine!", id)
 	w, err := d.lw.Watch(namespace, gvr, options)
 	if err != nil {
 		klog.Error(err)
@@ -106,10 +109,10 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 		select {
 		case e, ok := <-w.ResultChan():
 			if !ok {
-				klog.Info("watch message(%s) chan is closed, restart a new watch chan!", id)
+				klog.Infof("watcher(%s) chan is closed, restart a new watcher!", id)
 				w, err = d.lw.Watch(namespace, gvr, options)
 				if err != nil {
-					klog.Errorf("failed to restart watch message(%s) with error: %v", id, err)
+					klog.Errorf("failed to restart watcher(%s) with error: %v", id, err)
 				}
 				continue
 			}

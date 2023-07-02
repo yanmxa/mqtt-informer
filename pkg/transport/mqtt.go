@@ -98,7 +98,7 @@ func (t *mqttTransport) Receive(topic string) (Receiver, error) {
 		transportMsg := &apis.TransportMessage{}
 		err := json.Unmarshal(msg.Payload, transportMsg)
 		if err != nil {
-			klog.Error(err)
+			klog.Errorf("failed to unmarshal message: %s", err.Error())
 			return
 		}
 		klog.Infof("received message(%s): %s", transportMsg.ID, transportMsg.Type)

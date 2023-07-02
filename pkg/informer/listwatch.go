@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/yanmxa/transport-informer/pkg/apis"
@@ -137,13 +138,16 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 	// now start to receive the list response until endOfList is false
 	e.listResultChan[listMessageRequest.uid] = make(chan apis.ListResponseMessage)
 	defer delete(e.listResultChan, listMessageRequest.uid)
+	listRunning := false
 	for {
 		select {
 		case response, ok := <-e.listResultChan[listMessageRequest.uid]:
 			if !ok {
+				klog.Errorf("listResult chan(%s) is closed: %s", transportMessage.ID, transportMessage.Type)
 				return objectList, nil
 			}
 
+			listRunning = true
 			if objectList.Object == nil {
 				objectList.Object = response.Objects.Object
 			}
@@ -154,6 +158,15 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 			}
 		case <-ctx.Done():
 			return objectList, nil
+		case <-time.After(time.Second * 10):
+			if listRunning {
+				continue
+			}
+			klog.Infof("request to re-list message(%s): %s", transportMessage.ID, transportMessage.Type)
+			err := e.transporter.Send(e.sendTopic, transportMessage)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 }
