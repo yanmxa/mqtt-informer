@@ -128,7 +128,7 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 	listMessageRequest := newListWatchMsg("informer", apis.MessageListType(e.gvr), e.namespace, e.gvr, options)
 	transportMessage := listMessageRequest.ToMessage()
 
-	klog.Infof("request to list message(%s): %s", transportMessage.ID, transportMessage.Type)
+	klog.Infof("informer lists message(%s): %s", transportMessage.ID, transportMessage.Type)
 	err := e.transporter.Send(e.sendTopic, transportMessage)
 	if err != nil {
 		return nil, err

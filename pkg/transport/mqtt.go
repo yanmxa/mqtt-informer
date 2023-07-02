@@ -87,7 +87,7 @@ func (t *mqttTransport) Send(topic string, msg apis.TransportMessage) error {
 // start a goroutine to receive message from subscribed topic
 func (t *mqttTransport) Receive(topic string) (Receiver, error) {
 	if t.receivers[topic] != nil {
-		klog.Info("receiver(%s) already existed!", topic)
+		klog.Info("Receiver(%s) already existed!", topic)
 		return t.receivers[topic], nil
 	}
 
@@ -101,10 +101,11 @@ func (t *mqttTransport) Receive(topic string) (Receiver, error) {
 			klog.Errorf("failed to unmarshal message: %s", err.Error())
 			return
 		}
-		klog.Infof("received message(%s): %s", transportMsg.ID, transportMsg.Type)
+		// klog.Infof("received message(%s): %s", transportMsg.ID, transportMsg.Type)
 		messageChan <- *transportMsg
 	})
 
+	// klog.Infof("receiver subscribe topic: %s", topic)
 	if _, err := t.client.Subscribe(t.ctx, &paho.Subscribe{
 		Subscriptions: map[string]paho.SubscribeOptions{
 			topic: {QoS: t.qos, NoLocal: true, RetainAsPublished: t.retained},
@@ -113,7 +114,6 @@ func (t *mqttTransport) Receive(topic string) (Receiver, error) {
 		return nil, err
 	}
 
-	klog.Infof("receiver(%s) started!", topic)
 	return t.receivers[topic], nil
 }
 

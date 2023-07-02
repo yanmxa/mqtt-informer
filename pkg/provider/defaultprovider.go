@@ -141,7 +141,7 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 			msg.Source = d.clusterName
 			msg.Payload = res
 
-			klog.Infof("send watch message(%s): %s", msg.ID, msg.Type)
+			klog.Infof("provider send watch message(%s): %s", msg.ID, msg.Type)
 			err = d.transporter.Send(d.sendTopic, msg)
 			if err != nil {
 				klog.Warning("failed to send watch object with error: %v", err)
@@ -183,7 +183,7 @@ func (d *defaultProvider) sendListResponses(ctx context.Context, id types.UID, n
 	msg.Source = d.clusterName
 	msg.Payload = res
 
-	klog.Infof("send list response message(%s): %s", msg.ID, msg.Type)
+	klog.Infof("provider send list response message(%s): %s", msg.ID, msg.Type)
 	err = d.transporter.Send(d.sendTopic, msg)
 
 	if err != nil {
