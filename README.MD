@@ -33,14 +33,14 @@ In order to improve the robustness of reconciliation in Informer, the resync mec
 - Informer lists all the resources from transport Periodically
 - The provider periodically sends all objects of a GVR from transport to Informer's watch channel, and Informer determines whether to process them based on a message version.
 #### MQTT 
- - Add message [acknowledgment mechanism](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/)
+- Add message [acknowledgment mechanism](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/)
     - QoS 1: A balance between reliability and efficiency, guaranteeing that the message reaches the receiver at least once while allowing for potential duplicates to be handled appropriately.
     - QoS 2:  Be aware of the overhead and that the QoS 2 interaction takes more time to complete.
 
-  - [Persistent sessions](https://www.hivemq.com/blog/mqtt-essentials-part-7-persistent-session-queuing-messages/)
+- [Persistent sessions](https://www.hivemq.com/blog/mqtt-essentials-part-7-persistent-session-queuing-messages/)
     > Persistent sessions in MQTT allow a client to maintain its subscription and message state across multiple connections. When a client establishes a persistent session with an MQTT broker, the broker stores the client’s subscription information and any undelivered messages intended for the client. This way, if the client disconnects and reconnects later, it can resume communication seamlessly.
 
-  - Message Ordering: QoS 0 and QoS 2
+- Message Ordering: QoS 0 and QoS 2
 
 
 | Now I will use MQTT as a transport to integrate with informer to do some interesting experiments.
@@ -62,9 +62,9 @@ docker run --rm --name mosquitto -p 1883:1883 -v "$(pwd)/samples/mosquitto.conf:
 # build binary
 make build
 # cluster1 cluster
-./bin/provider --broker 127.0.0.1:1883 --client-id providerId --send /provider/payload --receive /informer/signal --cluster cluster1
+./bin/provider --broker 127.0.0.1:1883 --client-id providerId --provider-send /provider/payload --provider-receive /informer/signal --cluster cluster1
 # controlplane cluster
-./bin/informer --broker 127.0.0.1:1883 --client-id informerId --send /informer/signal --receive /provider/payload
+./bin/informer --broker 127.0.0.1:1883 --client-id informerId --informer-send /informer/signal --informer-receive /provider/payload
 ```
 > Create/update/delete resource on cluster1, then check the resource on controlplane cluster
 

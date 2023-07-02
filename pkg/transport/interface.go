@@ -4,12 +4,12 @@ import "github.com/yanmxa/transport-informer/pkg/apis"
 
 type Transport interface {
 	Sender
-	Receive() (Receiver, error)
+	Receive(topic string) (Receiver, error)
 	Stop()
 }
 
 type Sender interface {
-	Send(msg apis.TransportMessage) error
+	Send(topic string, msg apis.TransportMessage) error
 }
 
 type Receiver interface {

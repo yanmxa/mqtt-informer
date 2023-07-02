@@ -16,13 +16,11 @@ import (
 var _ Transport = (*mqttTransport)(nil)
 
 type mqttTransport struct {
-	ctx          context.Context
-	client       *paho.Client
-	receiveTopic string
-	sendTopic    string
-	qos          byte
-	retained     bool
-	receiver     Receiver
+	ctx       context.Context
+	client    *paho.Client
+	qos       byte
+	retained  bool
+	receivers map[string]Receiver
 }
 
 func NewMqttTransport(ctx context.Context, opt *option.Options) *mqttTransport {
@@ -61,23 +59,22 @@ func NewMqttTransport(ctx context.Context, opt *option.Options) *mqttTransport {
 	klog.Info("Connected to ", opt.Broker)
 
 	return &mqttTransport{
-		ctx:          ctx,
-		client:       client,
-		receiveTopic: opt.ReceiveTopic,
-		sendTopic:    opt.SendTopic,
-		qos:          opt.QoS,
-		retained:     opt.Retained,
+		ctx:       ctx,
+		client:    client,
+		qos:       opt.QoS,
+		retained:  opt.Retained,
+		receivers: make(map[string]Receiver),
 	}
 }
 
-func (t *mqttTransport) Send(msg apis.TransportMessage) error {
+func (t *mqttTransport) Send(topic string, msg apis.TransportMessage) error {
 	payload, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
 	_, err = t.client.Publish(t.ctx, &paho.Publish{
 		QoS:     t.qos,
-		Topic:   t.sendTopic,
+		Topic:   topic,
 		Payload: payload,
 		Retain:  t.retained,
 	})
@@ -88,16 +85,16 @@ func (t *mqttTransport) Send(msg apis.TransportMessage) error {
 }
 
 // start a goroutine to receive message from subscribed topic
-func (t *mqttTransport) Receive() (Receiver, error) {
-	if t.receiver != nil {
-		klog.Info("receiver(%s) already started!", t.receiveTopic)
-		return t.receiver, nil
+func (t *mqttTransport) Receive(topic string) (Receiver, error) {
+	if t.receivers[topic] != nil {
+		klog.Info("receiver(%s) already existed!", topic)
+		return t.receivers[topic], nil
 	}
 
 	messageChan := make(chan apis.TransportMessage)
-	t.receiver = NewDefaultReceiver(messageChan)
+	t.receivers[topic] = NewDefaultReceiver(messageChan)
 
-	t.client.Router.RegisterHandler(t.receiveTopic, func(msg *paho.Publish) {
+	t.client.Router.RegisterHandler(topic, func(msg *paho.Publish) {
 		transportMsg := &apis.TransportMessage{}
 		err := json.Unmarshal(msg.Payload, transportMsg)
 		if err != nil {
@@ -110,14 +107,14 @@ func (t *mqttTransport) Receive() (Receiver, error) {
 
 	if _, err := t.client.Subscribe(t.ctx, &paho.Subscribe{
 		Subscriptions: map[string]paho.SubscribeOptions{
-			t.receiveTopic: {QoS: t.qos, NoLocal: true, RetainAsPublished: t.retained},
+			topic: {QoS: t.qos, NoLocal: true, RetainAsPublished: t.retained},
 		},
 	}); err != nil {
 		return nil, err
 	}
 
-	klog.Infof("receiver(%s) started!", t.receiveTopic)
-	return t.receiver, nil
+	klog.Infof("receiver(%s) started!", topic)
+	return t.receivers[topic], nil
 }
 
 // func (t *mqttTransport) waitUntilConnected() error {
@@ -134,10 +131,11 @@ func (t *mqttTransport) GetClient() *paho.Client {
 }
 
 func (t *mqttTransport) Stop() {
-	if t.receiver != nil {
-		t.receiver.Stop()
-		klog.Infof("transport receiver(%s) stopped!", t.receiveTopic)
+	for topic, receiver := range t.receivers {
+		receiver.Stop()
+		klog.Infof("transport receiver(%s) stopped!", topic)
 	}
+
 	err := t.client.Conn.Close()
 	if err != nil {
 		klog.Error(err)

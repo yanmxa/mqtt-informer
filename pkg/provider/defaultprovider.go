@@ -16,23 +16,27 @@ import (
 )
 
 type defaultProvider struct {
-	clusterName string
-	lw          ListWatcher // used to list and watch local resource
-	transporter transport.Transport
-	watchStop   map[types.UID]context.CancelFunc
+	clusterName  string
+	lw           ListWatcher // used to list and watch local resource
+	transporter  transport.Transport
+	watchStop    map[types.UID]context.CancelFunc
+	sendTopic    string
+	receiveTopic string
 }
 
-func NewDefaultProvider(clusterName string, dynamicClient *dynamic.DynamicClient, t transport.Transport) Provider {
+func NewDefaultProvider(clusterName string, dynamicClient *dynamic.DynamicClient, t transport.Transport, send, receive string) Provider {
 	return &defaultProvider{
-		clusterName: clusterName,
-		lw:          NewDynamicListWatcher(dynamicClient),
-		transporter: t,
-		watchStop:   map[types.UID]context.CancelFunc{},
+		clusterName:  clusterName,
+		lw:           NewDynamicListWatcher(dynamicClient),
+		transporter:  t,
+		watchStop:    map[types.UID]context.CancelFunc{},
+		sendTopic:    send,
+		receiveTopic: receive,
 	}
 }
 
 func (d *defaultProvider) Run(ctx context.Context) error {
-	receiver, err := d.transporter.Receive()
+	receiver, err := d.transporter.Receive(d.receiveTopic)
 	if err != nil {
 		return err
 	}
@@ -126,7 +130,7 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 			msg.Payload = res
 
 			klog.Infof("send watch message(%s): %s", msg.ID, msg.Type)
-			err = d.transporter.Send(msg)
+			err = d.transporter.Send(d.sendTopic, msg)
 			if err != nil {
 				klog.Warning("failed to send watch object with error: %v", err)
 			}
@@ -166,7 +170,7 @@ func (d *defaultProvider) sendListResponses(ctx context.Context, id types.UID, n
 	msg.Payload = res
 
 	klog.Infof("send list response message(%s): %s", msg.ID, msg.Type)
-	err = d.transporter.Send(msg)
+	err = d.transporter.Send(d.sendTopic, msg)
 
 	if err != nil {
 		klog.Errorf("failed to send list objects with error: %v", err)

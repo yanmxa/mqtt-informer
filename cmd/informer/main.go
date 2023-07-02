@@ -37,7 +37,8 @@ func main() {
 	opt := option.ParseOptionFromFlag()
 	transporter := transport.NewMqttTransport(ctx, opt)
 
-	informerFactory := informers.NewSharedMessageInformerFactory(ctx, transporter, time.Minute*5)
+	informerFactory := informers.NewSharedMessageInformerFactory(ctx, transporter, time.Minute*5,
+		opt.InformerSendTopic, opt.InformerReceiveTopic)
 
 	gvr := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
 	secretInformer := informerFactory.ForResource(gvr)

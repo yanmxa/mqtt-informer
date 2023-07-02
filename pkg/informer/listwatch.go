@@ -26,11 +26,12 @@ type MessageListWatcher struct {
 	listResultChan map[types.UID]chan apis.ListResponseMessage
 	rwlock         sync.RWMutex
 
-	transporter transport.Transport
+	transporter             transport.Transport
+	sendTopic, receiveTopic string
 }
 
 func NewMessageListWatcher(ctx context.Context, t transport.Transport, namespace string,
-	gvr schema.GroupVersionResource,
+	gvr schema.GroupVersionResource, send, receive string,
 ) *MessageListWatcher {
 	lw := &MessageListWatcher{
 		ctx:            ctx,
@@ -38,9 +39,11 @@ func NewMessageListWatcher(ctx context.Context, t transport.Transport, namespace
 		namespace:      namespace,
 		listResultChan: map[types.UID]chan apis.ListResponseMessage{},
 		transporter:    t,
+		sendTopic:      send,
+		receiveTopic:   receive,
 	}
 
-	receiver, err := t.Receive()
+	receiver, err := t.Receive(receive)
 	if err != nil {
 		panic(err)
 	}
@@ -101,7 +104,7 @@ func (e *MessageListWatcher) Watch(options metav1.ListOptions) (watch.Interface,
 	watchMessage := newListWatchMsg("informer", apis.MessageWatchType(e.gvr), e.namespace, e.gvr, options)
 	transportMessage := watchMessage.ToMessage()
 
-	e.transporter.Send(transportMessage)
+	e.transporter.Send(e.sendTopic, transportMessage)
 	klog.Infof("request to watch message(%s): %s", transportMessage.ID, transportMessage.Type)
 
 	e.watcher = newMessageWatcher(watchMessage.uid, e.watcherStop, e.gvr, 10)
@@ -114,7 +117,7 @@ func (e *MessageListWatcher) watcherStop() {
 	transportMessage := stopWatchMessage.ToMessage()
 
 	klog.Infof("request to stop watch message(%s): %s", transportMessage.ID, transportMessage.Type)
-	err := e.transporter.Send(transportMessage)
+	err := e.transporter.Send(e.sendTopic, transportMessage)
 	if err != nil {
 		klog.Error(err)
 	}
@@ -125,7 +128,7 @@ func (e *MessageListWatcher) list(ctx context.Context, options metav1.ListOption
 	transportMessage := listMessageRequest.ToMessage()
 
 	klog.Infof("request to list message(%s): %s", transportMessage.ID, transportMessage.Type)
-	err := e.transporter.Send(transportMessage)
+	err := e.transporter.Send(e.sendTopic, transportMessage)
 	if err != nil {
 		return nil, err
 	}
