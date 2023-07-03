@@ -64,9 +64,6 @@ func main() {
 	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			accessor, _ := meta.Accessor(obj)
-			// if _, ok := accessor.GetLabels()["mqtt-resource"]; !ok {
-			// 	return
-			// }
 			validateNamespace(kubeClient, accessor.GetNamespace())
 
 			accessor.SetResourceVersion("")
@@ -88,9 +85,6 @@ func main() {
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldAccessor, _ := meta.Accessor(oldObj)
 			newAccessor, _ := meta.Accessor(newObj)
-			// if _, ok := newAccessor.GetLabels()["mqtt-resource"]; !ok {
-			// 	return
-			// }
 			oldUnstructuredObj, err := dynamicClient.Resource(gvr).Namespace(oldAccessor.GetNamespace()).Get(ctx, oldAccessor.GetName(), metav1.GetOptions{})
 			if err != nil {
 				klog.Error(err)
@@ -109,13 +103,10 @@ func main() {
 				klog.Error(err)
 				return
 			}
-			klog.Infof("Updated from %s/%s to %s/%s", oldAccessor.GetNamespace(), oldAccessor.GetName(), newAccessor.GetNamespace(), newAccessor.GetName())
+			klog.Infof("Updated %s/%s", newAccessor.GetNamespace(), newAccessor.GetName())
 		},
 		DeleteFunc: func(obj interface{}) {
 			accessor, _ := meta.Accessor(obj)
-			// if _, ok := accessor.GetLabels()["mqtt-resource"]; !ok {
-			// 	return
-			// }
 			err := dynamicClient.Resource(gvr).Namespace(accessor.GetNamespace()).Delete(ctx, accessor.GetName(), metav1.DeleteOptions{})
 			if err != nil {
 				klog.Error(err)
