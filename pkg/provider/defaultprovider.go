@@ -108,7 +108,7 @@ func (d *defaultProvider) watchResponse(ctx context.Context, id types.UID, names
 
 	for {
 		select {
-		// TODO: can add a ticker to send all the watch events periodically like informer resync, all will need to do is close the w.ResultChan(), then a new watcher will be created
+		// TODO: can add a ticker to send all the watch events periodically like informer resync
 		case e, ok := <-w.ResultChan():
 			if !ok {
 				klog.Infof("watcher(%s) is closed, restart a new watcher to %s!", apis.MessageWatchResponseType(gvr),

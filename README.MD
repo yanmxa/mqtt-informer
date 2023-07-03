@@ -31,6 +31,11 @@ By introducing a custom Transport, we also bring an additional layer that is res
 
 #### Take advantage of the informer resync mechanism
 In order to improve the robustness of reconciliation in Informer, the resync mechanism is used to synchronize the full cache to the delta queue. This make the reconciliation process to handle failures or discrepancies gracefully. This also brings us a way to enhance the reliability of transport.
+
+similarly, We can let the provider periodically send the status of all current resources to the informer's watch chan. 
+
+It can even be implemented this way: creating another informer sending the event to the provider's watch response from its event handler. This directly leverages the informer's resync mechanism to provide the event sources for the provider re-syncing all events to transport.
+
 ![resync](./docs/images/resync.png)
 
 #### MQTT 
