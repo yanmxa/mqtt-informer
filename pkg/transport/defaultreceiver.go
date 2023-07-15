@@ -1,7 +1,7 @@
 package transport
 
 import (
-	"github.com/yanmxa/transport-informer/pkg/apis"
+	"github.com/yanmxa/straw/pkg/apis"
 )
 
 var _ Receiver = (*defaultReceiver)(nil)

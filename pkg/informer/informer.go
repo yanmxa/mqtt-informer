@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/yanmxa/transport-informer/pkg/transport"
+	"github.com/yanmxa/straw/pkg/transport"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"

@@ -22,11 +22,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
-	informers "github.com/yanmxa/transport-informer/pkg/informer"
-	"github.com/yanmxa/transport-informer/pkg/option"
-	"github.com/yanmxa/transport-informer/pkg/provider"
-	"github.com/yanmxa/transport-informer/pkg/transport"
-	"github.com/yanmxa/transport-informer/pkg/utils"
+	informers "github.com/yanmxa/straw/pkg/informer"
+	"github.com/yanmxa/straw/pkg/option"
+	"github.com/yanmxa/straw/pkg/provider"
+	"github.com/yanmxa/straw/pkg/transport"
+	"github.com/yanmxa/straw/pkg/utils"
 	appsv1 "k8s.io/api/apps/v1"
 )
 

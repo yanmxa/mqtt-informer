@@ -1,27 +1,27 @@
-# Transport Informer
+# Straw
 
 ## Background
 ### Does the informer have to reflect ETCD? 
-![00](./docs/images/00.png)
+![00](./images/00.png)
 
 Kubernetes utilizes in-memory caching to effectively reduce the load pressure on the API server caused by a large number of controllers. The consistency between this cache and the persistent layer is ensured by ETCD, which provides a reliable List/Watch interface. So that the [informers can watch the desired sate of resources in a scalable and sustainable fashion. Beyond that, they also implement a resync mechanism that enforces periodic reconciliation, and is often used to make sure that the cluster state and the assumed state cached in memory do not drift(e.g., due bugs or network issues)](https://www.oreilly.com/library/view/programming-kubernetes/9781492047094/ch01.html).
 
-![001](./docs/images/001.png)
+![001](./images/001.png)
 So far everything seems fine, but if we need to see the deployed resource not just in one cluster, but in multiple clusters. At this time, [8G's ETCD](https://github.com/etcd-io/etcd/issues/9771) might be inadequate. A more straightforward idea is to replace ETCD with other scalable databases, like kine, as an etcdshim that translates ETCD API to Postgres, MqSql and SQLit. Anther way is to find a reliably method for the controlplane to take advantage of ETCDs distributed on different clusters？
 
 ### Transporter might be an interesting candidate!
 
-![message queue](./docs/images/message-queue.png)
+![message queue](./images/message-queue.png)
 Transport(Message Queue) can **decouple**, improve **scalability**, and peak shaving and valley filling of the **flow rate**. These excellent features not only shine in application services, But also should be of great value to platform management.
 
-![twins](./docs/images/twins.png)
+![twins](./images/twins.png)
 The Kubernetes controller achieves the desired state of the resource through event accumulation. The message queue is to change the state of a real object through data streaming. There seem to be some similarities between Kubernetes Event and Transport Message.
 
 In order to gain a large scalability, [Mutilcluster-Global-Hub](https://github.com/stolostron/multicluster-global-hub) brings transport to increases the cluster fleet size of the management. While to ensure data consistency, the agent sends all object status data of a certain type each time, which is called a bundle. And also the manager has a complex message confirmation methods. Which seems not elegant enough and CloudNative.
 
 ### How to make this informer to watch the transport message instead of ETCD event?
 
-![002](./docs/images/002.png)
+![002](./images/002.png)
 To eliminate the gap between transport and ETCD, the first issue need to be addressed is:
 How to make transport respond to Informer's List/Watch like ETCD? Thanks to the [event-informer](https://github.com/qiujian16/events-informer) for bringing us an idea. 
 
@@ -36,7 +36,7 @@ similarly, We can let the provider periodically send the status of all current r
 
 It can even be implemented this way: creating another informer sending the event to the provider's watch response from its event handler. This directly leverages the informer's resync mechanism to provide the event sources for the provider re-syncing all events to transport.
 
-![resync](./docs/images/resync.png)
+![resync](./images/resync.png)
 
 #### MQTT 
 - Add message [acknowledgment mechanism](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/)
@@ -50,7 +50,7 @@ It can even be implemented this way: creating another informer sending the event
 
 
 | Now I will use MQTT as a transport to integrate with informer to do some interesting experiments.
-![feel the power](./docs/images/power.png)
+![feel the power](./images/power.png)
 
 
 ## Start a transport: eclipse-mosquitto MQTT Broker
@@ -61,7 +61,7 @@ docker run --rm --name mosquitto -p 1883:1883 -v "$(pwd)/samples/mosquitto.conf:
 ```
 
 ## Scenario 1: As a monitor to view resources of clusters
-![provider-informer](./docs/images/provider-informer.png)
+![provider-informer](./images/provider-informer.png)
 
 ### Demo
 ```bash
@@ -88,7 +88,7 @@ make build
 
 ## Scenario 2: Using bidirectional informer to deploy workload
 
-![bidirectional-informer](./docs/images/bidirectional-informer.png)
+![bidirectional-informer](./images/bidirectional-informer.png)
 
 ### Demo
 - start the agent and manager
@@ -101,12 +101,12 @@ make build
   ```
 - Deploy resources under the namespace `cluster1` of the `hub`
   ```bash
-  oc apply -f ./sample/nginx-deployment.yaml
+  oc apply -f ./resource/nginx-deployment.yaml
   ```
   > Note: It will recreate resource after deleting it from cluster(Resync).
 
 - Need to be consolidated
-  ![enhance](./docs/images/enhance.png)
+  ![enhance](./images/enhance.png)
 
 #### Cons
 - How to define the Cluster CRD and manage it's lifecycle? 

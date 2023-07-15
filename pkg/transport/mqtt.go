@@ -7,9 +7,9 @@ import (
 	"net"
 
 	"github.com/eclipse/paho.golang/paho"
-	"github.com/yanmxa/transport-informer/pkg/apis"
-	"github.com/yanmxa/transport-informer/pkg/option"
-	"github.com/yanmxa/transport-informer/pkg/utils"
+	"github.com/yanmxa/straw/pkg/apis"
+	"github.com/yanmxa/straw/pkg/option"
+	"github.com/yanmxa/straw/pkg/utils"
 	"k8s.io/klog/v2"
 )
 

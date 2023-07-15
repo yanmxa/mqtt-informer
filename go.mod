@@ -1,4 +1,4 @@
-module github.com/yanmxa/transport-informer
+module github.com/yanmxa/straw
 
 go 1.20
 

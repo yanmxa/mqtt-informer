@@ -1,6 +1,6 @@
 package transport
 
-import "github.com/yanmxa/transport-informer/pkg/apis"
+import "github.com/yanmxa/straw/pkg/apis"
 
 type Transport interface {
 	Sender

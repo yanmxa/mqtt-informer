@@ -3,7 +3,7 @@ package informer
 import (
 	"encoding/json"
 
-	"github.com/yanmxa/transport-informer/pkg/apis"
+	"github.com/yanmxa/straw/pkg/apis"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"

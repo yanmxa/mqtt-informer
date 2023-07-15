@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yanmxa/transport-informer/pkg/transport"
+	"github.com/yanmxa/straw/pkg/transport"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
