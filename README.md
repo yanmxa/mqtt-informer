@@ -1,8 +1,8 @@
 # Straw
 
----
+==========================
 
-Straw is an etcdshim that consume event from transport instead of etcd. This allows your Kubernetes to run on other data sources through the straw. and gives the ability to manage, deploy, and view resources across multiple clusters
+Straw is an etcdshim that consume event from transport instead of etcd. Which enable your Kubernetes to `List/Watch` resources through the **straw**.
 
 ## Implements
 
