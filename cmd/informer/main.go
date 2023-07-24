@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -36,7 +37,11 @@ func main() {
 	defer cancel()
 
 	opt := option.ParseOptionFromFlag()
-	transporter := transport.NewMqttTransport(ctx, opt)
+
+	transportClient, err := transport.CloudeventsClient(ctx, opt, transport.Informer)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// only informer the resource with label "mqtt-resource"
 	informerFactory := informers.NewSharedMessageInformerFactory(ctx, transporter, time.Minute*5,
