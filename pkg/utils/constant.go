@@ -6,4 +6,6 @@ const (
 	HubClusterName                   = "hub"
 	ProviderReadyResponseTopic       = "provider/ready/response"
 	TransportResourceLabelKey        = "hub.transport-informer/resources"
+
+	TargetResourceLabelKey = "straw-resource"
 )

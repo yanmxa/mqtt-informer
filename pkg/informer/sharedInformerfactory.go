@@ -36,7 +36,7 @@ type eventSharedInformerFactory struct {
 }
 
 // NewSharedMessageInformerFactory constructs a new instance of metadataSharedInformerFactory for all namespaces.
-func NewEventSharedMessageInformerFactory(ctx context.Context, t cloudevents.Client, defaultResync time.Duration,
+func NewSharedEventInformerFactory(ctx context.Context, t cloudevents.Client, defaultResync time.Duration,
 	namespace string, tweakOptions TweakListOptionsFunc,
 ) SharedInformerFactory {
 	return NewFilteredEventSharedInformerFactory(ctx, t, defaultResync, namespace, tweakOptions)

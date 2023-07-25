@@ -14,6 +14,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+var _ informers.GenericInformer = (*eventInformer)(nil)
+
 type eventInformer struct {
 	informer cache.SharedIndexInformer
 	gvr      schema.GroupVersionResource
@@ -23,7 +25,7 @@ type eventInformer struct {
 func NewFilteredEventInformer(ctx context.Context, t cloudevents.Client, gvr schema.GroupVersionResource,
 	namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakOptions TweakListOptionsFunc,
 ) informers.GenericInformer {
-	lw := NewEventListWatcher(ctx, t, namespace, gvr)
+	lw := NewEventListWatcher(ctx, t, namespace, gvr, "informer")
 	return &eventInformer{
 		gvr: gvr,
 		informer: cache.NewSharedIndexInformer(

@@ -43,12 +43,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// only informer the resource with label "mqtt-resource"
-	informerFactory := informers.NewSharedMessageInformerFactory(ctx, transporter, time.Minute*5,
-		opt.InformerSendTopic, opt.InformerReceiveTopic, metav1.NamespaceAll, func(options *metav1.ListOptions) {
-			options.LabelSelector = fmt.Sprintf("%s=", "mqtt-resource")
-		})
-
+	// only informer the resource with label "straw-resource"
+	informerFactory := informers.NewSharedEventInformerFactory(ctx, transportClient, time.Minute*5, metav1.NamespaceAll, func(options *metav1.ListOptions) {
+		options.LabelSelector = fmt.Sprintf("%s=", utils.TargetResourceLabelKey)
+	})
 	gvr := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
 	secretInformer := informerFactory.ForResource(gvr)
 
@@ -124,7 +122,6 @@ func main() {
 	informerFactory.Start()
 	<-ctx.Done()
 	time.Sleep(2 * time.Second) // wait for the informer send stop signal to transporter
-	transporter.Stop()
 }
 
 func validateNamespace(kubeClient *kubernetes.Clientset, namespace string) error {
