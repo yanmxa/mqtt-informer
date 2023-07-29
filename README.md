@@ -13,6 +13,7 @@ Straw is an etcdshim that consume event from transport instead of etcd. Which en
   2. Send resources from the cache to transport
   3. Resend cache data to transport periodically
 
+
 ## One more step
 
 Build a multi-cluster management prototype based on the above implementation. It can achieve the following goals:
@@ -21,6 +22,29 @@ Build a multi-cluster management prototype based on the above implementation. It
 - Deploy a resource(`deployment`) on the `cluster1` namespace of `hub`
 - The resource(`deployment`) is propagated to `cluster1` by `transport`
 - Report the resource status(`deployment.Status.AvailableReplicas`) on `cluster1` to `hub`(add an `AvailableReplicas` annotation to the original `deployment`) through `transport`
+
+
+## Demo
+
+### Start a MQTT Protocol
+
+To run a sample MQTT broker using docker:
+
+```bash
+docker run -it --rm --name mosquitto -p 1883:1883 eclipse-mosquitto:2.0 mosquitto -c /mosquitto-no-auth.conf
+```
+
+### Watch Secret by the Transport
+
+```bash
+# Build binary
+make build
+
+# Run a provider
+
+
+
+```
 
 ## References
 

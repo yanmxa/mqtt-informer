@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,6 +15,7 @@ import (
 	"github.com/yanmxa/straw/pkg/provider"
 	"github.com/yanmxa/straw/pkg/transport"
 	"github.com/yanmxa/straw/pkg/utils"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func init() {
@@ -26,17 +28,33 @@ func main() {
 
 	opt := option.ParseOptionFromFlag()
 
+	transportClient, err := transport.CloudeventsClient(ctx, opt, transport.Provider)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	restConfig, err := clientcmd.BuildConfigFromFlags("", opt.KubeConfig)
 	if err != nil {
 		klog.Fatalf("failed to build config, %v", err)
 	}
 	dynamicClient := dynamic.NewForConfigOrDie(restConfig)
 
-	transporter := transport.NewMqttTransport(ctx, opt)
+	p := provider.NewProvider(opt.ClusterName, dynamicClient, transportClient,
+		func(obj metav1.Object, clusterName string) {
+			name := obj.GetName()
+			namespace := obj.GetNamespace()
+			if namespace == "" {
+				obj.SetName(clusterName + "." + name)
+			} else {
+				obj.SetName(namespace + "." + name)
+				obj.SetNamespace(clusterName)
+			}
+			obj.SetManagedFields(nil)
+		})
 
-	p := provider.NewDefaultProvider(opt.ClusterName, dynamicClient, transporter,
-		opt.ProviderSendTopic, opt.ProviderReceiveTopic, utils.ConvertToGlobalObj)
-
-	p.Run(ctx)
-	transporter.Stop()
+	err = p.Run(ctx)
+	if err != nil {
+		klog.Fatalf("provider shut down with error: %v", err)
+	}
+	klog.Info("provider shut down gracefully")
 }

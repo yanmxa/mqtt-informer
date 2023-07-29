@@ -2,6 +2,7 @@ package apis
 
 import (
 	"fmt"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -57,4 +58,17 @@ func MessageListResponseType(gvr schema.GroupVersionResource) string {
 
 func MessageWatchResponseType(gvr schema.GroupVersionResource) string {
 	return fmt.Sprintf("response.watch.%s", toGVRString(gvr))
+}
+
+func ParseMessageType(t string) (string, schema.GroupVersionResource, error) {
+	eventTypeArray := strings.Split(t, ".")
+	if len(eventTypeArray) != 4 {
+		return "", schema.GroupVersionResource{}, fmt.Errorf("failed to parse message type")
+	}
+
+	return eventTypeArray[0], schema.GroupVersionResource{
+		Version:  eventTypeArray[1],
+		Resource: eventTypeArray[2],
+		Group:    eventTypeArray[3],
+	}, nil
 }

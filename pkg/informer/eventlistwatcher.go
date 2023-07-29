@@ -8,6 +8,7 @@ import (
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/google/uuid"
 	"github.com/yanmxa/straw/pkg/apis"
+	"github.com/yanmxa/straw/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,7 +27,7 @@ type eventListWatcher struct {
 	gvr            schema.GroupVersionResource
 	namespace      string
 	source         string
-	watcher        watch.Interface
+	watcher        EventWatcher
 	listResultChan map[types.UID]chan apis.ListResponseEvent
 	rwlock         sync.RWMutex
 
@@ -55,9 +56,7 @@ func NewEventListWatcher(ctx context.Context, t cloudevents.Client, namespace st
 			if !ok {
 				return fmt.Errorf("unable to find the related uid for list %s", event.ID())
 			}
-
 			response := &apis.ListResponseEvent{}
-
 			err := event.DataAs(response)
 			if err != nil {
 				return err
@@ -67,7 +66,7 @@ func NewEventListWatcher(ctx context.Context, t cloudevents.Client, namespace st
 			if lw.watcher == nil {
 				return fmt.Errorf("unable to find the watcher for gvr %s", gvr)
 			}
-			return lw.watcher.process(event)
+			return lw.watcher.Add(event)
 		}
 		return nil
 	})
@@ -90,6 +89,10 @@ func (e *eventListWatcher) List(options metav1.ListOptions) (runtime.Object, err
 	defer delete(e.listResultChan, types.UID(sessionId))
 
 	objectList := &unstructured.UnstructuredList{}
+	// TODO
+	defer func() {
+		utils.PrettyPrint(objectList)
+	}()
 	for {
 		select {
 		case response, ok := <-e.listResultChan[types.UID(sessionId)]:
@@ -122,20 +125,20 @@ func (e *eventListWatcher) Watch(options metav1.ListOptions) (watch.Interface, e
 	if cloudevents.IsUndelivered(result) {
 		return nil, fmt.Errorf("failed to send watch event: %v", result)
 	}
-	klog.Infof("request to watch event: %s", watchRequestEvent.Type())
+	klog.Infof("request to watch: %s", watchRequestEvent.Type())
 	e.watcher = newEventWatcher(types.UID(sessionId), e.gvr, 10, e.watcherStop)
 	return e.watcher, nil
 }
 
-func (e *eventListWatcher) watcherStop() {
-	sessionId := uuid.New().String()
-	stopWatchRequestEvent, err := e.toEvent(sessionId, apis.EventStopWatchType(e.gvr), metav1.ListOptions{})
+func (e *eventListWatcher) watcherStop(watcherId string) {
+	stopWatchRequestEvent, err := e.toEvent(watcherId, apis.EventStopWatchType(e.gvr), metav1.ListOptions{})
 	if err != nil {
 		klog.Error(err)
 		return
 	}
-	klog.Infof("request to stopwatch event: %s", stopWatchRequestEvent.Type())
-	result := e.transporter.Send(e.ctx, stopWatchRequestEvent)
+	klog.Infof("request to stopwatch: %s - %s \n", stopWatchRequestEvent.Type(), stopWatchRequestEvent.ID())
+	// since the context is canceled, we should send the message with a new context
+	result := e.transporter.Send(context.TODO(), stopWatchRequestEvent)
 	if cloudevents.IsUndelivered(result) {
 		klog.Error("failed to send watch event: %v", result)
 	}

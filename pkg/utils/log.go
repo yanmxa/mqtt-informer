@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 
@@ -45,4 +47,18 @@ func DefaultLogger() logr.Logger {
 	zapLogger := zap.New(zapCore, zap.AddCaller(), zap.AddCallerSkip(1))
 	logger := zapr.NewLogger(zapLogger)
 	return logger
+}
+
+// func PrettyPrint(i interface{}) string {
+// 	bytes, _ := json.MarshalIndent(i, "", " ")
+// 	return string(bytes)
+// }
+
+func PrettyPrint(v interface{}) error {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(b))
+	return nil
 }

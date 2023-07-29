@@ -6,7 +6,7 @@ metadata:
   labels:
     app: nginx
     hub.transport-informer/target-namespace: default
-    hub.transport-informer/resources: ""
+    straw-resource: ""
 spec:
   replicas: 1
   selector:
