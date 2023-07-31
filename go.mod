@@ -3,8 +3,8 @@ module github.com/yanmxa/straw
 go 1.20
 
 require (
-	github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20230717181755-e15d03d99ad0
-	github.com/cloudevents/sdk-go/v2 v2.14.0
+	github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20230730160942-85db5b9b08d6
+	github.com/cloudevents/sdk-go/v2 v2.14.1-0.20230730160942-85db5b9b08d6
 	github.com/eclipse/paho.golang v0.11.0
 	github.com/go-logr/zapr v1.2.4
 	github.com/spf13/pflag v1.0.5

@@ -32,6 +32,8 @@ To run a sample MQTT broker using docker:
 
 ```bash
 docker run -it --rm --name mosquitto -p 1883:1883 eclipse-mosquitto:2.0 mosquitto -c /mosquitto-no-auth.conf
+# with persistence
+docker run -it --rm --name mosquitto -p 1883:1883 -v `pwd`/resource/mosquitto.conf:/mosquitto/config/mosquitto.conf eclipse-mosquitto
 ```
 
 ### Watch Secret by the Transport

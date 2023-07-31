@@ -4,10 +4,10 @@ github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLj
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
-github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20230717181755-e15d03d99ad0 h1:VJjr3AKAGgL9EkHUHIHBrcpNu155IaX2wHybCjmyObc=
-github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20230717181755-e15d03d99ad0/go.mod h1:DWhIuRBfUCVJ2OrsrQktpfxpWB3FlzMK5Jy5bylEexI=
-github.com/cloudevents/sdk-go/v2 v2.14.0 h1:Nrob4FwVgi5L4tV9lhjzZcjYqFVyJzsA56CwPaPfv6s=
-github.com/cloudevents/sdk-go/v2 v2.14.0/go.mod h1:xDmKfzNjM8gBvjaF8ijFjM1VYOVUEeUfapHMUX1T5To=
+github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20230730160942-85db5b9b08d6 h1:kJND5Bcia5rFTu8+mbF4eAGsZTae2BU8WcPtPFXotj4=
+github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20230730160942-85db5b9b08d6/go.mod h1:DWhIuRBfUCVJ2OrsrQktpfxpWB3FlzMK5Jy5bylEexI=
+github.com/cloudevents/sdk-go/v2 v2.14.1-0.20230730160942-85db5b9b08d6 h1:9N8z7EvhjFvVyNVazEVlrhmhszavlcFF+/IWRNtfR1Y=
+github.com/cloudevents/sdk-go/v2 v2.14.1-0.20230730160942-85db5b9b08d6/go.mod h1:xDmKfzNjM8gBvjaF8ijFjM1VYOVUEeUfapHMUX1T5To=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=

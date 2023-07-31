@@ -44,13 +44,22 @@ func CloudeventsClient(ctx context.Context, opt *option.Options, transportType T
 		senderTopic = opt.ProviderSendTopic
 	}
 
-	p, err := cemqtt.New(ctx, &paho.ClientConfig{
-		Conn: conn,
-	}, &paho.Connect{
-		KeepAlive:  30,
-		ClientID:   opt.ClientID,
-		CleanStart: true,
-	}, senderTopic, []string{receiverTopic}, opt.QoS, opt.Retained)
+	subscribeOpt := &paho.Subscribe{
+		Subscriptions: map[string]paho.SubscribeOptions{
+			receiverTopic: {QoS: 0},
+		},
+	}
+
+	p, err := cemqtt.New(ctx,
+		&paho.ClientConfig{
+			ClientID: opt.ClientID,
+			Conn:     conn,
+		},
+		cemqtt.WithPublish(&paho.Publish{
+			Topic: senderTopic,
+		}),
+		cemqtt.WithSubscribe(subscribeOpt),
+	)
 	if err != nil {
 		return client, err
 	}
