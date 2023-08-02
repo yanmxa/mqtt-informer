@@ -41,23 +41,23 @@ type WatchResponseMessage struct {
 }
 
 func MessageListType(gvr schema.GroupVersionResource) string {
-	return fmt.Sprintf("list.%s", toGVRString(gvr))
+	return fmt.Sprintf("list.%s", ToGVRString(gvr))
 }
 
 func MessageWatchType(gvr schema.GroupVersionResource) string {
-	return fmt.Sprintf("watch.%s", toGVRString(gvr))
+	return fmt.Sprintf("watch.%s", ToGVRString(gvr))
 }
 
 func MessageStopWatchType(gvr schema.GroupVersionResource) string {
-	return fmt.Sprintf("stopwatch.%s", toGVRString(gvr))
+	return fmt.Sprintf("stopwatch.%s", ToGVRString(gvr))
 }
 
 func MessageListResponseType(gvr schema.GroupVersionResource) string {
-	return fmt.Sprintf("response.list.%s", toGVRString(gvr))
+	return fmt.Sprintf("response.list.%s", ToGVRString(gvr))
 }
 
 func MessageWatchResponseType(gvr schema.GroupVersionResource) string {
-	return fmt.Sprintf("response.watch.%s", toGVRString(gvr))
+	return fmt.Sprintf("response.watch.%s", ToGVRString(gvr))
 }
 
 func ParseMessageType(t string) (string, schema.GroupVersionResource, error) {

@@ -20,7 +20,7 @@ type ListResponseEvent struct {
 }
 
 func EventListResponseType(gvr schema.GroupVersionResource) string {
-	return fmt.Sprintf("response.list.%s", toGVRString(gvr))
+	return fmt.Sprintf("response.list.%s", ToGVRString(gvr))
 }
 
 type WatchResponseEvent struct {
@@ -29,23 +29,23 @@ type WatchResponseEvent struct {
 }
 
 func EventWatchResponseType(gvr schema.GroupVersionResource) string {
-	return fmt.Sprintf("response.watch.%s", toGVRString(gvr))
+	return fmt.Sprintf("response.watch.%s", ToGVRString(gvr))
 }
 
-func toGVRString(gvr schema.GroupVersionResource) string {
+func ToGVRString(gvr schema.GroupVersionResource) string {
 	return fmt.Sprintf("%s.%s.%s", gvr.Version, gvr.Resource, gvr.Group)
 }
 
 func EventListType(gvr schema.GroupVersionResource) string {
-	return fmt.Sprintf("list.%s", toGVRString(gvr))
+	return fmt.Sprintf("list.%s", ToGVRString(gvr))
 }
 
 func EventWatchType(gvr schema.GroupVersionResource) string {
-	return fmt.Sprintf("watch.%s", toGVRString(gvr))
+	return fmt.Sprintf("watch.%s", ToGVRString(gvr))
 }
 
 func EventStopWatchType(gvr schema.GroupVersionResource) string {
-	return fmt.Sprintf("stopwatch.%s", toGVRString(gvr))
+	return fmt.Sprintf("stopwatch.%s", ToGVRString(gvr))
 }
 
 func ParseEventType(t string) (string, schema.GroupVersionResource, error) {

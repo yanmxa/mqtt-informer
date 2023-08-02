@@ -41,15 +41,15 @@ func main() {
 
 	p := provider.NewProvider(opt.ClusterName, dynamicClient, transportClient,
 		func(obj metav1.Object, clusterName string) {
-			name := obj.GetName()
-			namespace := obj.GetNamespace()
-			if namespace == "" {
-				obj.SetName(clusterName + "." + name)
-			} else {
-				obj.SetName(namespace + "." + name)
-				obj.SetNamespace(clusterName)
-			}
-			obj.SetManagedFields(nil)
+			// name := obj.GetName()
+			// namespace := obj.GetNamespace()
+			// if namespace == "" {
+			// 	obj.SetName(clusterName + "." + name)
+			// } else {
+			// 	obj.SetName(namespace + "." + name)
+			// 	obj.SetNamespace(clusterName)
+			// }
+			// obj.SetManagedFields(nil)
 		})
 
 	err = p.Run(ctx)

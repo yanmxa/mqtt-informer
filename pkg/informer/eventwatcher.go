@@ -2,10 +2,10 @@ package informer
 
 import (
 	"fmt"
+	"reflect"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/yanmxa/straw/pkg/apis"
-	"github.com/yanmxa/straw/pkg/utils"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
@@ -55,17 +55,32 @@ func (w *eventWatcher) Add(event cloudevents.Event) error {
 		return err
 	}
 
-	obj, err := convertToPartialObjectMetadata(watchResponse.Object)
-	if err != nil {
-		return err
-	}
+	// obj := GetObject(apis.ToGVRString(w.gvr))
+	// if obj == nil {
+	// 	return fmt.Errorf("the informer is unable to find the runtime object for gvr(%s)", apis.ToGVRString(w.gvr))
+	// }
 
-	// TODO
-	utils.PrettyPrint(watchResponse)
+	// err = runtime.DefaultUnstructuredConverter.FromUnstructured(watchResponse.Object.Object, obj)
+	// if err != nil {
+	// 	return err
+	// }
+	t := reflect.TypeOf(watchResponse.Object)
+	fmt.Println("received unstructured event type", t)
+
+	// utils.PrettyPrint(obj)
 	w.watchResultChan <- watch.Event{
 		Type:   watchResponse.Type,
-		Object: obj,
+		Object: watchResponse.Object,
 	}
 	klog.Info("watcher add event: ", event.Type())
 	return nil
 }
+
+// func convertUnstructuredObjToPartialObjectMetadata(obj *unstructured.Unstructured) (*v1.PartialObjectMetadata, error) {
+// 	partialObj := &v1.PartialObjectMetadata{}
+// 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, partialObj)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return partialObj, nil
+// }
