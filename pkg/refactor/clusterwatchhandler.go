@@ -2,6 +2,7 @@ package refactor
 
 import (
 	"fmt"
+	"io"
 	"reflect"
 	"time"
 
@@ -14,9 +15,8 @@ import (
 	"k8s.io/utils/clock"
 )
 
-// watchHandler watches w and sets setLastSyncResourceVersion
-func watchHandlerForCluster(
-	cluster string,
+// clusterWatchHandler watches w and sets setLastSyncResourceVersion
+func clusterWatchHandler(
 	start time.Time,
 	w watch.Interface,
 	store Store,
@@ -97,9 +97,10 @@ loop:
 				utilruntime.HandleError(fmt.Errorf("%s: unable to understand watch event %#v", name, event))
 			}
 			setLastSyncResourceVersion(resourceVersion)
-			if rvu, ok := store.(ResourceVersionUpdater); ok {
-				rvu.UpdateResourceVersion(resourceVersion)
-			}
+			// TODO: update the resource version to store
+			// if rvu, ok := store.(ResourceVersionUpdater); ok {
+			// 	rvu.UpdateResourceVersion(resourceVersion)
+			// }
 			eventCount++
 			if exitOnInitialEventsEndBookmark != nil && *exitOnInitialEventsEndBookmark {
 				watchDuration := clock.Since(start)
@@ -115,4 +116,33 @@ loop:
 	}
 	klog.V(4).Infof("%s: Watch close - %v total %v items received", name, expectedTypeName, eventCount)
 	return nil
+}
+
+// The WatchErrorHandler is called whenever ListAndWatch drops the
+// connection with an error. After calling this handler, the informer
+// will backoff and retry.
+//
+// The default implementation looks at the error type and tries to log
+// the error message at an appropriate level.
+//
+// Implementations of this handler may display the error message in other
+// ways. Implementations should return quickly - any expensive processing
+// should be offloaded.
+type WatchErrorHandler func(r *ClusterRefactor, err error)
+
+// DefaultWatchErrorHandler is the default implementation of WatchErrorHandler
+func DefaultWatchErrorHandler(r *ClusterRefactor, err error) {
+	switch {
+	case isExpiredError(err):
+		// Don't set LastSyncResourceVersionUnavailable - LIST call with ResourceVersion=RV already
+		// has a semantic that it returns data at least as fresh as provided RV.
+		// So first try to LIST with setting RV to resource version of last observed object.
+		klog.V(4).Infof("%s: watch of %v closed with: %v", r.name, r.typeDescription, err)
+	case err == io.EOF:
+		// watch closed normally
+	case err == io.ErrUnexpectedEOF:
+		klog.V(1).Infof("%s: Watch for %v closed with unexpected EOF: %v", r.name, r.typeDescription, err)
+	default:
+		utilruntime.HandleError(fmt.Errorf("%s: Failed to watch %v: %v", r.name, r.typeDescription, err))
+	}
 }
