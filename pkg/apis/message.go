@@ -13,9 +13,11 @@ import (
 type Mode string
 
 const (
-	ModeList  Mode = "list"
-	ModeWatch Mode = "watch"
-	ModeStop  Mode = "stopwatch"
+	ModeList       Mode = "list"
+	ModeWatch      Mode = "watch"
+	ModeStop       Mode = "stopwatch"
+	ModeRegister   Mode = "register"
+	ModeUnregister Mode = "unregister"
 )
 
 type TransportMessage struct {

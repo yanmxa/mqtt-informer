@@ -120,6 +120,13 @@ type ClusterRefactor struct {
 	//
 	// See https://github.com/kubernetes/enhancements/tree/master/keps/sig-api-machinery/3157-watch-list#design-details
 	UseWatchList bool
+
+	// internalStopCh is used to signal the reflector to stop.
+	internalStopCh chan struct{}
+	// isRunning is true if the reflector is running.
+	IsRunning      bool
+	latestSyncTime time.Time
+	timeout        time.Duration
 }
 
 // NewClusterReflector creates a new Reflector object which will keep the
@@ -148,6 +155,9 @@ func NewClusterReflector(name string, typeDesc string, lw cache.ListerWatcher, e
 		clock:                  reflectorClock,
 		watchErrorHandler:      WatchErrorHandler(DefaultWatchErrorHandler),
 		expectedType:           reflect.TypeOf(expectedType),
+		internalStopCh:         make(chan struct{}),
+		IsRunning:              false,
+		timeout:                10 * time.Minute,
 	}
 
 	if r.typeDescription == "" {
@@ -199,12 +209,15 @@ func getExpectedGVKFromObject(expectedType interface{}) *schema.GroupVersionKind
 // objects and subsequent deltas.
 // Run will exit when stopCh is closed.
 func (r *ClusterRefactor) Run(stopCh <-chan struct{}) {
+	// so that the reflector can be shutdown from the internalStopCh
+	r.attachInternalStopCh(stopCh)
 	klog.V(3).Infof("Starting reflector %s from %s", r.typeDescription, r.name)
 	wait.BackoffUntil(func() {
-		if err := r.ListAndWatch(stopCh); err != nil {
+		r.IsRunning = true
+		if err := r.ListAndWatch(r.internalStopCh); err != nil {
 			r.watchErrorHandler(r, err)
 		}
-	}, r.backoffManager, true, stopCh)
+	}, r.backoffManager, true, r.internalStopCh)
 	klog.V(3).Infof("Stopping reflector %s from %s", r.typeDescription, r.name)
 }
 
@@ -604,4 +617,27 @@ func (r *ClusterRefactor) LastSyncResourceVersion() string {
 	r.lastSyncResourceVersionMutex.RLock()
 	defer r.lastSyncResourceVersionMutex.RUnlock()
 	return r.lastSyncResourceVersion
+}
+
+func (r *ClusterRefactor) attachInternalStopCh(stopChan <-chan struct{}) {
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stopChan:
+				r.internalStopCh <- struct{}{}
+			case <-ticker.C:
+				if r.latestSyncTime.Add(r.timeout).Before(time.Now()) {
+					klog.Warningf("Stopping refactor %s due to timeout %s", r.name, r.timeout.String())
+					r.internalStopCh <- struct{}{}
+				}
+			}
+		}
+	}()
+}
+
+func (r *ClusterRefactor) StopRefactor() {
+	r.IsRunning = false
+	r.internalStopCh <- struct{}{}
 }
