@@ -237,9 +237,9 @@ type Deltas []Delta
 // instead to receive a `Replaced` event depending on the type.
 //
 // Deprecated: Equivalent to NewDeltaFIFOWithOptions(DeltaFIFOOptions{KeyFunction: keyFunc, KnownObjects: knownObjects})
-func NewDeltaFIFO(keyFunc KeyFunc, knownObjects KeyListerGetter) *DeltaFIFO {
+func NewDeltaFIFO(knownObjects KeyListerGetter) *DeltaFIFO {
 	return NewDeltaFIFOWithOptions(DeltaFIFOOptions{
-		KeyFunction:  keyFunc,
+		KeyFunction:  ClusterMetaNamespaceKeyFunc,
 		KnownObjects: knownObjects,
 	})
 }
@@ -600,7 +600,7 @@ func (f *DeltaFIFO) Pop(process cache.PopProcessFunc) (interface{}, error) {
 			defer trace.LogIfLong(100 * time.Millisecond)
 		}
 		err := process(item, isInInitialList)
-		if e, ok := err.(ErrRequeue); ok {
+		if e, ok := err.(cache.ErrRequeue); ok {
 			f.addIfNotPresent(id, item)
 			err = e.Err
 		}

@@ -50,6 +50,11 @@ func main() {
 			// 	obj.SetNamespace(clusterName)
 			// }
 			// obj.SetManagedFields(nil)
+			labels := obj.GetLabels()
+			if labels == nil {
+				labels = map[string]string{}
+			}
+			labels[utils.ClusterLabelKey] = clusterName
 		})
 
 	err = p.Run(ctx)

@@ -8,4 +8,7 @@ const (
 	TransportResourceLabelKey        = "hub.transport-informer/resources"
 
 	TargetResourceLabelKey = "straw-resource"
+
+	// ClusterLabelKey is the label key for the cluster name
+	ClusterLabelKey = "cluster"
 )

@@ -19,6 +19,7 @@ package refactor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -33,21 +34,27 @@ import (
 
 // Reflector watches a specified resource and causes all changes to be reflected in the given store.
 type ReflectorFactory struct {
-	ctx         context.Context
-	clusters    map[string]*ClusterRefactor
-	deltaQueues map[string]*cache.Queue
-	mutex       sync.RWMutex
-	transport   cloudevents.Client
-	gvr         schema.GroupVersionResource
+	ctx        context.Context
+	clusters   map[string]*ClusterRefactor
+	deltaQueue cache.Queue
+	mutex      sync.RWMutex
+	transport  cloudevents.Client
+	gvr        schema.GroupVersionResource
 }
 
 func NewReflectorFactory(ctx context.Context, gvr schema.GroupVersionResource, t cloudevents.Client) *ReflectorFactory {
+	fifo := NewDeltaFIFOWithOptions(DeltaFIFOOptions{
+		KnownObjects:          cache.NewIndexer(cache.DeletionHandlingMetaNamespaceKeyFunc, nil),
+		EmitDeltaTypeReplaced: true,
+		KeyFunction:           ClusterMetaNamespaceKeyFunc,
+		// Transformer:           s.transform,
+	})
 	return &ReflectorFactory{
-		ctx:         ctx,
-		clusters:    map[string]*ClusterRefactor{},
-		deltaQueues: map[string]*cache.Queue{},
-		transport:   t,
-		gvr:         gvr,
+		ctx:        ctx,
+		clusters:   map[string]*ClusterRefactor{},
+		transport:  t,
+		gvr:        gvr,
+		deltaQueue: fifo,
 	}
 }
 
@@ -73,6 +80,10 @@ func (r *ReflectorFactory) Run(stopCh <-chan struct{}) {
 	}()
 
 	// consume the obj from delta queues
+	go func() {
+		<-stopCh
+		r.deltaQueue.Close()
+	}()
 	go wait.Until(r.processLoop, time.Second, stopCh)
 
 	// refactor resource from cluster
@@ -91,13 +102,7 @@ func (r *ReflectorFactory) Run(stopCh <-chan struct{}) {
 func (r *ReflectorFactory) RegisterRefactor(cluster string) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	fifo := NewDeltaFIFOWithOptions(DeltaFIFOOptions{
-		KnownObjects:          cache.NewIndexer(cache.DeletionHandlingMetaNamespaceKeyFunc, nil),
-		EmitDeltaTypeReplaced: true,
-		// Transformer:           s.transform,
-	})
-	r.deltaQueues[cluster] = fifo
-	r.clusters[cluster] = NewClusterReflector(cluster, "", nil, nil, fifo)
+	r.clusters[cluster] = NewClusterReflector(cluster, "", nil, nil, r.deltaQueue)
 }
 
 func (r *ReflectorFactory) UnregisterRefactor(cluster string) {
@@ -105,7 +110,6 @@ func (r *ReflectorFactory) UnregisterRefactor(cluster string) {
 	defer r.mutex.Unlock()
 	r.clusters[cluster].StopRefactor()
 	delete(r.clusters, cluster)
-	delete(r.deltaQueues, cluster)
 }
 
 // processLoop drains the work queue.
@@ -118,47 +122,30 @@ func (r *ReflectorFactory) UnregisterRefactor(cluster string) {
 // ever being stoppable. Converting this whole package to use Context would
 // also be helpful.
 func (r *ReflectorFactory) processLoop() {
-	for _, fifo := range r.deltaQueues {
-		go r.processQueue(fifo)
-	}
-
-	// for {
-	// 	obj, err := c.config.Queue.Pop(PopProcessFunc(c.config.Process))
-	// 	if err != nil {
-	// 		if err == ErrFIFOClosed {
-	// 			return
-	// 		}
-	// 		if c.config.RetryOnError {
-	// 			// This is the safe way to re-enqueue.
-	// 			c.config.Queue.AddIfNotPresent(obj)
-	// 		}
-	// 	}
-	// }
-}
-
-var RetryOnError bool
-
-func (r *ReflectorFactory) processQueue(queue cache.Queue) {
 	for {
-		obj, err := queue.Pop(cache.PopProcessFunc(r.HandleDeltas))
+		_, err := r.deltaQueue.Pop(cache.PopProcessFunc(r.handleDeltas))
 		if err != nil {
 			if err == cache.ErrFIFOClosed {
 				return
 			}
-			if RetryOnError {
-				// This is the safe way to re-enqueue.
-				queue.AddIfNotPresent(obj)
-			}
+			klog.Errorf("Unable to pop from deltas queue: %v", err)
+			// consider adding retry logic here
+			// if c.config.RetryOnError {
+			// 	// This is the safe way to re-enqueue.
+			// 	c.config.Queue.AddIfNotPresent(obj)
+			// }
 		}
 	}
 }
 
-func (r *ReflectorFactory) HandleDeltas(obj interface{}, isInInitialList bool) error {
+func (r *ReflectorFactory) handleDeltas(obj interface{}, isInInitialList bool) error {
 	if deltas, ok := obj.(Deltas); ok {
 		return processDeltas(nil, nil, deltas, isInInitialList)
 	}
 	return errors.New("object given as Process argument is not Deltas")
 }
+
+var RetryOnError bool
 
 // Multiplexes updates in the form of a list of Deltas into a Store, and informs
 // a given handler of events OnUpdate, OnAdd, OnDelete
@@ -179,18 +166,21 @@ func processDeltas(
 				if err := clientState.Update(obj); err != nil {
 					return err
 				}
-				handler.OnUpdate(old, obj)
+				// handler.OnUpdate(old, obj)
+				fmt.Println("OnUpdate", "old", old, "new", obj)
 			} else {
 				if err := clientState.Add(obj); err != nil {
 					return err
 				}
-				handler.OnAdd(obj, isInInitialList)
+				// handler.OnAdd(obj, isInInitialList)
+				fmt.Println("OnAdd", "new", obj)
 			}
 		case Deleted:
 			if err := clientState.Delete(obj); err != nil {
 				return err
 			}
-			handler.OnDelete(obj)
+			// handler.OnDelete(obj)
+			fmt.Println("OnDelete", "old", obj)
 		}
 	}
 	return nil
