@@ -21,7 +21,7 @@ const (
 	Provider
 )
 
-func CloudeventsClient(ctx context.Context, opt *option.Options, transportType TransportType) (
+func CloudeventsClient(ctx context.Context, opt *option.Options) (
 	client cloudevents.Client, err error,
 ) {
 	var conn net.Conn
@@ -35,30 +35,19 @@ func CloudeventsClient(ctx context.Context, opt *option.Options, transportType T
 		return client, err
 	}
 
-	var receiverTopic, senderTopic string
-	if transportType == Informer {
-		receiverTopic = opt.InformerReceiveTopic
-		senderTopic = opt.InformerSendTopic
-	} else if transportType == Provider {
-		receiverTopic = opt.ProviderReceiveTopic
-		senderTopic = opt.ProviderSendTopic
-	}
-
-	subscribeOpt := &paho.Subscribe{
-		Subscriptions: map[string]paho.SubscribeOptions{
-			receiverTopic: {QoS: 0},
-		},
-	}
-
 	p, err := cemqtt.New(ctx,
 		&paho.ClientConfig{
 			ClientID: opt.ClientID,
 			Conn:     conn,
 		},
 		cemqtt.WithPublish(&paho.Publish{
-			Topic: senderTopic,
+			Topic: opt.SendTopic,
 		}),
-		cemqtt.WithSubscribe(subscribeOpt),
+		cemqtt.WithSubscribe(&paho.Subscribe{
+			Subscriptions: map[string]paho.SubscribeOptions{
+				opt.ReceiveTopic: {QoS: 0},
+			},
+		}),
 	)
 	if err != nil {
 		return client, err

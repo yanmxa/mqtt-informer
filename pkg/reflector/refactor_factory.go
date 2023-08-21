@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package refactor
+package reflector
 
 import (
 	"context"
@@ -69,10 +69,10 @@ func (r *ReflectorFactory) Run(stopCh <-chan struct{}) {
 		r.transport.StartReceiver(r.ctx, func(event cloudevents.Event) error {
 			switch event.Type() {
 			case string(apis.ModeRegister):
-				klog.V(3).Infof("Registering reflector %s", event.Source())
+				klog.Infof("Registering reflector %s", event.Source())
 				r.RegisterRefactor(event.Source())
 			case string(apis.ModeUnregister):
-				klog.V(3).Infof("Unregistering reflector %s", event.Source())
+				klog.Infof("Unregistering reflector %s", event.Source())
 				r.UnregisterRefactor(event.Source())
 			}
 			return nil
@@ -96,7 +96,7 @@ func (r *ReflectorFactory) Run(stopCh <-chan struct{}) {
 		}
 	}, 5*time.Second, stopCh)
 
-	klog.V(3).Infof("Stopping ReflectorFactory %s", apis.ToGVRString(r.gvr))
+	klog.Infof("Stopping ReflectorFactory %s", apis.ToGVRString(r.gvr))
 }
 
 func (r *ReflectorFactory) RegisterRefactor(cluster string) {

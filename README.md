@@ -32,8 +32,8 @@ To run a sample MQTT broker using docker:
 
 ```bash
 docker run -it --rm --name mosquitto -p 1883:1883 eclipse-mosquitto:2.0 mosquitto -c /mosquitto-no-auth.conf
-# with persistence
-docker run -it --rm --name mosquitto -p 1883:1883 -v `pwd`/resource/mosquitto.conf:/mosquitto/config/mosquitto.conf eclipse-mosquitto
+# with config
+# docker run -it --rm --name mosquitto -p 1883:1883 -v `pwd`/resource/mosquitto.conf:/mosquitto/config/mosquitto.conf eclipse-mosquitto
 ```
 
 ### Watch Secret by the Transport
@@ -42,11 +42,11 @@ docker run -it --rm --name mosquitto -p 1883:1883 -v `pwd`/resource/mosquitto.co
 # Build binary
 make build
 
-# Run a provider
+# reflector from hub
 
-
-
+ ./bin/reflector --broker 127.0.0.1:1883 --client-id hub-cluster-id --send-topic /event/signal --receive-topic /event/payload
 ```
+
 
 ## References
 

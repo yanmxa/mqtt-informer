@@ -36,7 +36,7 @@ func main() {
 
 	opt := option.ParseOptionFromFlag()
 
-	transportClient, err := transport.CloudeventsClient(ctx, opt, transport.Informer)
+	transportClient, err := transport.CloudeventsClient(ctx, opt)
 	if err != nil {
 		log.Fatal(err)
 	}

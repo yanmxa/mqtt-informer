@@ -20,6 +20,8 @@ type Options struct {
 	InformerSendTopic    string
 	InformerReceiveTopic string
 	ClusterName          string
+	ReceiveTopic         string
+	SendTopic            string
 }
 
 type TLSConfig struct {
@@ -45,7 +47,9 @@ func ParseOptionFromFlag() *Options {
 	flag.StringVarP(&opt.ProviderReceiveTopic, "provider-receive", "", "", "the topic for provider receive payload")
 	flag.StringVarP(&opt.InformerSendTopic, "informer-send", "", "", "the topic for informer send payload")
 	flag.StringVarP(&opt.InformerReceiveTopic, "informer-receive", "", "", "the topic for informer receive payload")
-	flag.StringVarP(&opt.ClusterName, "cluster", "", "", "the cluster where the syncer is running ")
+	flag.StringVarP(&opt.SendTopic, "send-topic", "", "", "the topic for send payload")
+	flag.StringVarP(&opt.ReceiveTopic, "receive-topic", "", "", "the topic for receive payload")
+	flag.StringVarP(&opt.ClusterName, "cluster", "", "hub", "the cluster where the syncer is running ")
 	QoS := flag.IntP("QoS", "q", 0,
 		"the level of reliability and assurance of message delivery between an MQTT client and broker")
 	flag.BoolVarP(&opt.Retained, "retained", "", false, "retain the MQTT message or not")

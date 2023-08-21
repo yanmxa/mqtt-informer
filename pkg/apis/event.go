@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	cloudevents "github.com/cloudevents/sdk-go/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -59,4 +60,11 @@ func ParseEventType(t string) (string, schema.GroupVersionResource, error) {
 		Resource: eventTypeArray[2],
 		Group:    eventTypeArray[3],
 	}, nil
+}
+
+func NewHeartbeatEvent(cluster string) cloudevents.Event {
+	e := cloudevents.NewEvent()
+	e.SetSource(cluster)
+	e.SetType(string(ModeRegister))
+	return e
 }
